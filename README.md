@@ -25,7 +25,7 @@ Welcome to the **AI-Powered Multi-Sport Tracking Platform**! This application ag
 
 ## Features
 
-- **Multi-Niche Aggregation**: Pull events from Eventbrite, Twitch, SportsData.io, and more.  
+- **Multi-Niche Aggregation**: Pull events from TicketMaster, Meetup, Twitch, SportsData.io, and more.  
 - **AI-Driven Recommendations**: Personalized event suggestions using user profiles, local weather, and trending data.  
 - **Interactive Calendar**: Responsive month/week/day calendar view with filters by interest.  
 - **Community Feedback**: Users can rate and comment on events to improve future recommendations.  
@@ -86,7 +86,6 @@ Welcome to the **AI-Powered Multi-Sport Tracking Platform**! This application ag
 Create a .env in backend/:
 
  	DATABASE_URL=postgresql://user:password@db:5432/events
-	EVENTBRITE_API_KEY=your_eventbrite_key
 	TWITCH_CLIENT_ID=your_twitch_client_id
 	TWITCH_CLIENT_SECRET=your_twitch_secret
 	SPORTSDATA_API_KEY=your_sportsdata_key
