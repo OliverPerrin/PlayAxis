@@ -84,7 +84,7 @@ Welcome to the **AI-Powered Multi-Sport Tracking Platform**! This application ag
 ### Environmental Variables
 
 Create a .env in backend/:
-	```dotenv
+
  	DATABASE_URL=postgresql://user:password@db:5432/events
 	EVENTBRITE_API_KEY=your_eventbrite_key
 	TWITCH_CLIENT_ID=your_twitch_client_id
@@ -134,20 +134,22 @@ See docs/api_integrations.md for full specs.
 
 ## Project Structure
 
+```plaintext
 multi-event-calendar/
 ├── backend/            # FastAPI service
-│   ├── app/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .env
+│	├── app/
+│	├── Dockerfile
+│	├── requirements.txt
+│	└── .env
 ├── frontend/           # React app
-│   ├── src/
-│   ├── public/
-│   ├── Dockerfile
-│   └── package.json
+│	├── src/
+│	├── public/
+|	├── Dockerfile
+│	└── package.json
 ├── docker-compose.yml
 ├── README.md
 └── docs/               # Design docs, wireframes, API specs
+```
 
 ### Contributing
 
