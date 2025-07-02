@@ -116,10 +116,11 @@ Create a .env in backend/:
 For all sporting events (F1, soccer, football, tennis, etc.), we list schedules with direct “Buy Tickets” links to providers like Ticketmaster or StubHub. 
 Example:
 
+```plaintext
 Event		           Date	           Venue	  Tickets
 Australian GP	        2025-03-21	Albert Park	Buy Tickets	
 Premier League Match	2025-08-17	Old Trafford	Get Tickets
-
+```
 
 ### API Integrations
 
