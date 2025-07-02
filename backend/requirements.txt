@@ -5,3 +5,7 @@ psycopg2-binary
 python-dotenv
 pydantic
 alembic
+pydantic-settings
+httpx
+python-dateutil      # for Meetup’s RFC3339 dates
+pytz                 # timezones
