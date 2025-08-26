@@ -20,12 +20,10 @@ app.add_middleware(
 )
 
 # 3) Import your routers *after* app exists
-from app.api.events import router as events_router
-from app.api.imports import router as imports_router
+from app.api.v1.api import api_router
 
 # 4) Register routers
-app.include_router(events_router, prefix="/events", tags=["events"])
-app.include_router(imports_router)
+app.include_router(api_router, prefix="/api/v1")
 
 # 5) (Optional) health check
 @app.get("/healthz", tags=["health"])
