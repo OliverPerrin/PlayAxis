@@ -9,3 +9,4 @@ pydantic-settings
 httpx
 python-dateutil      # for Meetup’s RFC3339 dates
 pytz                 # timezones
+email-validator
