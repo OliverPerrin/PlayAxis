@@ -1,5 +1,5 @@
-
 from pydantic import BaseModel
+from app.models.interest import Interest
 
 class InterestBase(BaseModel):
     name: str
