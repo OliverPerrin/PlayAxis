@@ -32,3 +32,16 @@ uvloop
 watchfiles
 websockets
 python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+python-multipart
+cloudinary
+requests
+gunicorn
+boto3
+botocore
+s3transfer
+jmespath
+urllib3
+certifi
+click
