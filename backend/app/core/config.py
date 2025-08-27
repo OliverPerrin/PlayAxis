@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     TWITCH_CLIENT_ID: str
     TWITCH_ACCESS_TOKEN: str
     SPORTSDATAIO_API_KEY: str
+    TWITCH_CLIENT_SECRET: str
+    EVENTBRITE_API_KEY: str
+    EVENTBRITE_CLIENT_SECRET: str
+    EVENTBRITE_PRIVATE_TOKEN: str
+    EVENTBRITE_PUBLIC_TOKEN: str
 
     # API URLs
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3"
