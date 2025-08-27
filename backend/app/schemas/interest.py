@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from app.models.interest import Interest
+from app.models import User, Interest
+
 
 class InterestBase(BaseModel):
     name: str
