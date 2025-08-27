@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # API Keys
-    EVENTBRITE_API_KEY: str
     TWITCH_CLIENT_ID: str
     TWITCH_ACCESS_TOKEN: str
     SPORTSDATAIO_API_KEY: str
@@ -31,6 +30,6 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     class Config:
-        env_file = os.path.join(ROOT_DIR, ".env")
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
 
 settings = Settings()
