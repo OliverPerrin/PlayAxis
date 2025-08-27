@@ -14,6 +14,7 @@ async def get_weather(lat: float, lon: float):
         response = await client.get(
             f"{settings.WEATHER_API_URL}/forecast",
             params=params,
+            timeout=10.0,
         )
         response.raise_for_status()
         return response.json()
