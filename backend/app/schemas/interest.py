@@ -11,4 +11,4 @@ class Interest(InterestBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
