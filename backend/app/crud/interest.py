@@ -1,5 +1,6 @@
+from app.models.user import User
+from app.models.interest import Interest
 from sqlalchemy.orm import Session
-from app import models
 
 def get_interest_by_name(db: Session, name: str):
     return db.query(models.Interest).filter(models.Interest.name == name).first()
