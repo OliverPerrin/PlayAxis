@@ -1,4 +1,5 @@
 
+from fastapi import APIRouter
 from .endpoints import events, streams, sports, weather, auth, users, recommendations
 
 api_router = APIRouter()
