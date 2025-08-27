@@ -1,8 +1,4 @@
 from pydantic import BaseModel
-from ..models.user import User
-from ..models.interest import Interest
-
-
 class InterestBase(BaseModel):
     name: str
 
