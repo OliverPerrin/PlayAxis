@@ -1,6 +1,16 @@
-const API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://raw-minne-multisportsandevents-7f82c207.koyeb.app/' 
-  : '/api/v1';
+// Dynamically determine API URL based on environment
+const getAPIUrl = () => {
+  // Check if we're in development (localhost)
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return '/api/v1'; // Use proxy in development
+  }
+  
+  // In production, construct the API URL
+  const koyebAppName = 'raw-minne-multisportsandevents-7f82c207';
+  return `https://${koyebAppName}.koyeb.app/api/v1`;
+};
+
+const API_URL = getAPIUrl();
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
@@ -30,6 +40,27 @@ const handleResponse = async (response) => {
   return response.json();
 };
 
+// Add timeout utility
+const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout');
+    }
+    throw error;
+  }
+};
+
 export const getEvents = async (query = 'sports', lat = null, lon = null) => {
   try {
     let url = `${API_URL}/events?q=${encodeURIComponent(query)}`;
@@ -37,10 +68,9 @@ export const getEvents = async (query = 'sports', lat = null, lon = null) => {
       url += `&lat=${lat}&lon=${lon}`;
     }
     
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: getAuthHeaders(),
-      timeout: 15000, // 15 second timeout
     });
     
     return await handleResponse(response);
@@ -53,10 +83,9 @@ export const getEvents = async (query = 'sports', lat = null, lon = null) => {
 
 export const getStreams = async (gameId) => {
   try {
-    const response = await fetch(`${API_URL}/streams?game_id=${encodeURIComponent(gameId)}`, {
+    const response = await fetchWithTimeout(`${API_URL}/streams?game_id=${encodeURIComponent(gameId)}`, {
       method: 'GET',
       headers: getAuthHeaders(),
-      timeout: 15000,
     });
     
     return await handleResponse(response);
@@ -68,10 +97,9 @@ export const getStreams = async (gameId) => {
 
 export const getSportsEvents = async (sport) => {
   try {
-    const response = await fetch(`${API_URL}/sports/${encodeURIComponent(sport)}`, {
+    const response = await fetchWithTimeout(`${API_URL}/sports/${encodeURIComponent(sport)}`, {
       method: 'GET',
       headers: getAuthHeaders(),
-      timeout: 15000,
     });
     
     return await handleResponse(response);
@@ -87,10 +115,9 @@ export const getWeather = async (lat, lon) => {
       throw new Error('Latitude and longitude are required');
     }
     
-    const response = await fetch(`${API_URL}/weather?lat=${lat}&lon=${lon}`, {
+    const response = await fetchWithTimeout(`${API_URL}/weather?lat=${lat}&lon=${lon}`, {
       method: 'GET',
       headers: getAuthHeaders(),
-      timeout: 15000,
     });
     
     return await handleResponse(response);
@@ -102,10 +129,9 @@ export const getWeather = async (lat, lon) => {
 
 export const getRecommendations = async () => {
   try {
-    const response = await fetch(`${API_URL}/recommendations`, {
+    const response = await fetchWithTimeout(`${API_URL}/recommendations`, {
       method: 'GET',
       headers: getAuthHeaders(),
-      timeout: 15000,
     });
     
     return await handleResponse(response);
@@ -117,7 +143,7 @@ export const getRecommendations = async () => {
 
 // Auth functions
 export const login = async (email, password) => {
-  const response = await fetch(`${API_URL}/auth/login`, {
+  const response = await fetchWithTimeout(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -132,7 +158,7 @@ export const login = async (email, password) => {
 };
 
 export const signup = async (email, password, fullName) => {
-  const response = await fetch(`${API_URL}/auth/signup`, {
+  const response = await fetchWithTimeout(`${API_URL}/auth/signup`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -148,7 +174,7 @@ export const signup = async (email, password, fullName) => {
 };
 
 export const getCurrentUser = async () => {
-  const response = await fetch(`${API_URL}/users/me`, {
+  const response = await fetchWithTimeout(`${API_URL}/users/me`, {
     headers: getAuthHeaders(),
   });
   
@@ -156,7 +182,7 @@ export const getCurrentUser = async () => {
 };
 
 export const updateUserInterests = async (interests) => {
-  const response = await fetch(`${API_URL}/users/me/interests`, {
+  const response = await fetchWithTimeout(`${API_URL}/users/me/interests`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(interests.map(name => ({ name }))),
@@ -166,7 +192,7 @@ export const updateUserInterests = async (interests) => {
 };
 
 export const updateUser = async (userData) => {
-  const response = await fetch(`${API_URL}/users/me`, {
+  const response = await fetchWithTimeout(`${API_URL}/users/me`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(userData),
