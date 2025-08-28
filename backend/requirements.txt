@@ -33,6 +33,8 @@ watchfiles
 websockets
 python-jose[cryptography]
 passlib[bcrypt]
+passlib
+jose
 bcrypt
 python-multipart
 cloudinary

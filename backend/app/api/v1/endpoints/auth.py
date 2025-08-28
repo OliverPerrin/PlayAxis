@@ -7,6 +7,7 @@ from app.schemas.user import UserCreate, User
 from app.schemas.token import Token
 from app.crud.user import get_user_by_email, create_user
 from app.core.security import verify_password, create_access_token
+from app.core.dependencies import get_current_user
 
 router = APIRouter()
 
