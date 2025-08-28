@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.user import User, UserUpdate
 from app.crud.user import get_user_by_email
-from app.core.security import get_current_user
 from app.schemas.interest import InterestCreate
 from typing import List
 from app.crud.interest import get_interest_by_name, create_interest
+from app.core.dependencies import get_current_user
 
 router = APIRouter()
 
