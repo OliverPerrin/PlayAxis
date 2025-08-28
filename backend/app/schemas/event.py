@@ -4,9 +4,9 @@ from typing import Optional
 
 class EventBase(BaseModel):
     title: str
-    description: Optional[str]
+    description: Optional[str] = None
     start_time: datetime
-    end_time: Optional[datetime]
+    end_time: Optional[datetime] = None
     url: Optional[HttpUrl]
     source: str
     niche: str
