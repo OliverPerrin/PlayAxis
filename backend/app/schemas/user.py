@@ -1,11 +1,11 @@
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import List, Optional
 from .interest import Interest
 
 # Shared properties
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     full_name: str | None = None
 
 # Properties to receive via API on creation
