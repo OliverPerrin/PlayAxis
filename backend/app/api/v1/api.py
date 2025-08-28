@@ -1,6 +1,32 @@
 
-from fastapi import APIRouter
+from fastapi import APIRouter, FastAPI
 from .endpoints import events, streams, sports, weather, auth, users, recommendations
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Define the list of allowed origins (your frontend domains)
+origins = [
+    "https://your-netlify-site-name.netlify.app",  # Your production frontend URL
+    "http://localhost:3000",                      # Common port for local React dev
+    "http://localhost:5173",                      # Common port for local Vite dev
+    # You can also add Netlify deploy preview URLs using a wildcard if needed,
+    # but be specific for better security.
+]
+
+# Add the CORS middleware to your application
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,       # Allows specific origins
+    allow_credentials=True,      # Allows cookies to be included in requests
+    allow_methods=["*"],         # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],         # Allows all headers
+)
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
