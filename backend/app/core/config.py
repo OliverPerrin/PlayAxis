@@ -1,9 +1,5 @@
-from pydantic_settings import BaseSettings
 import os
-
-# This points to the root directory of your project (MultiSportApp)
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
+from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # Security
     SECRET_KEY: str
@@ -33,3 +29,7 @@ class Settings(BaseSettings):
         env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
 
 settings = Settings()
+
+# Normalize old-style URLs (postgres:// → postgresql://)
+if settings.DATABASE_URL.startswith("postgres://"):
+    settings.DATABASE_URL = settings.DATABASE_URL.replace("postgres://", "postgresql://", 1)
