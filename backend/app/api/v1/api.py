@@ -37,3 +37,5 @@ api_router.include_router(streams.router, prefix="/streams", tags=["streams"])
 api_router.include_router(sports.router, prefix="/sports", tags=["sports"])
 api_router.include_router(weather.router, prefix="/weather", tags=["weather"])
 api_router.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
+
+app.include_router(api_router, prefix="/api/v1")
