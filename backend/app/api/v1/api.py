@@ -1,4 +1,5 @@
 
+import os
 from fastapi import APIRouter, FastAPI
 from .endpoints import events, streams, sports, weather, auth, users, recommendations
 
