@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.core.security import get_current_user
+from app.core.dependencies import get_current_user
 from app.schemas.user import User
 from app.services.eventbrite import get_eventbrite_events
 from app.services.twitch import get_twitch_streams
