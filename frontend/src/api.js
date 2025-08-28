@@ -1,64 +1,176 @@
-
-const API_URL = '/api/v1';
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://raw-minne-multisportsandevents-7f82c207.koyeb.app/' 
+  : '/api/v1';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   if (token) {
-    return { Authorization: `Bearer ${token}` };
+    return { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
   }
-  return {};
+  return {
+    'Content-Type': 'application/json'
+  };
 };
 
-export const getEvents = async (query, lat, lon) => {
-  let url = `${API_URL}/events?q=${query}`;
-  if (lat && lon) {
-    url += `&lat=${lat}&lon=${lon}`;
-  }
-  const response = await fetch(url, {
-    headers: getAuthHeaders(),
-  });
+// Enhanced error handling function
+const handleResponse = async (response) => {
   if (!response.ok) {
-    throw new Error('Failed to fetch events');
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.detail || errorData.message || errorMessage;
+    } catch (e) {
+      // If parsing JSON fails, stick with the HTTP status message
+    }
+    throw new Error(errorMessage);
   }
   return response.json();
+};
+
+export const getEvents = async (query = 'sports', lat = null, lon = null) => {
+  try {
+    let url = `${API_URL}/events?q=${encodeURIComponent(query)}`;
+    if (lat && lon) {
+      url += `&lat=${lat}&lon=${lon}`;
+    }
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      timeout: 15000, // 15 second timeout
+    });
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('getEvents error:', error);
+    // Return empty events structure instead of throwing
+    return { events: [] };
+  }
 };
 
 export const getStreams = async (gameId) => {
-  const response = await fetch(`${API_URL}/streams?game_id=${gameId}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch streams');
+  try {
+    const response = await fetch(`${API_URL}/streams?game_id=${encodeURIComponent(gameId)}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      timeout: 15000,
+    });
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('getStreams error:', error);
+    return { data: [] };
   }
-  return response.json();
 };
 
 export const getSportsEvents = async (sport) => {
-  const response = await fetch(`${API_URL}/sports/${sport}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch sports events');
+  try {
+    const response = await fetch(`${API_URL}/sports/${encodeURIComponent(sport)}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      timeout: 15000,
+    });
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('getSportsEvents error:', error);
+    return [];
   }
-  return response.json();
 };
 
 export const getWeather = async (lat, lon) => {
-  const response = await fetch(`${API_URL}/weather?lat=${lat}&lon=${lon}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch weather');
+  try {
+    if (!lat || !lon) {
+      throw new Error('Latitude and longitude are required');
+    }
+    
+    const response = await fetch(`${API_URL}/weather?lat=${lat}&lon=${lon}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      timeout: 15000,
+    });
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('getWeather error:', error);
+    throw error; // Re-throw for weather component to handle
   }
-  return response.json();
 };
 
 export const getRecommendations = async () => {
-  const response = await fetch(`${API_URL}/recommendations`, {
+  try {
+    const response = await fetch(`${API_URL}/recommendations`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      timeout: 15000,
+    });
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('getRecommendations error:', error);
+    return [];
+  }
+};
+
+// Auth functions
+export const login = async (email, password) => {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      username: email,
+      password: password,
+    }),
+  });
+  
+  return await handleResponse(response);
+};
+
+export const signup = async (email, password, fullName) => {
+  const response = await fetch(`${API_URL}/auth/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password,
+      full_name: fullName,
+    }),
+  });
+  
+  return await handleResponse(response);
+};
+
+export const getCurrentUser = async () => {
+  const response = await fetch(`${API_URL}/users/me`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Failed to fetch recommendations');
-  }
-  return response.json();
+  
+  return await handleResponse(response);
+};
+
+export const updateUserInterests = async (interests) => {
+  const response = await fetch(`${API_URL}/users/me/interests`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(interests.map(name => ({ name }))),
+  });
+  
+  return await handleResponse(response);
+};
+
+export const updateUser = async (userData) => {
+  const response = await fetch(`${API_URL}/users/me`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(userData),
+  });
+  
+  return await handleResponse(response);
 };

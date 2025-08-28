@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -7,36 +6,86 @@ import { getEvents } from '../api';
 function Calendar({ selectedInterests }) {
   const [events, setEvents] = useState([]);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchEvents = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
-        const query = selectedInterests.join(' OR ') || 'sports';
+        const query = selectedInterests.length > 0 ? selectedInterests.join(' OR ') : 'sports';
         const data = await getEvents(query);
-        const formattedEvents = data.events.map(event => ({
-          title: event.name.text,
-          start: event.start.local,
-          end: event.end.local,
-          url: event.url,
-        }));
-        setEvents(formattedEvents);
+        
+        // Check if data has events property and it's an array
+        if (data && data.events && Array.isArray(data.events)) {
+          const formattedEvents = data.events.map(event => ({
+            title: event.name?.text || event.title || 'Untitled Event',
+            start: event.start?.local || event.start_time,
+            end: event.end?.local || event.end_time,
+            url: event.url,
+          })).filter(event => event.start); // Only include events with start time
+          
+          setEvents(formattedEvents);
+        } else {
+          // If no events or wrong format, set empty array
+          setEvents([]);
+          if (data && !data.events) {
+            console.warn('API response missing events property:', data);
+          }
+        }
       } catch (error) {
-        setError(error.message);
+        console.error('Error fetching events:', error);
+        setError('Failed to load events. Please try again later.');
+        setEvents([]); // Set empty events on error
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchEvents();
   }, [selectedInterests]);
 
+  if (error) {
+    return (
+      <div className="bg-white shadow rounded-lg p-4">
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Event Calendar</h2>
+        <div className="text-center py-8">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white shadow rounded-lg p-4">
       <h2 className="text-lg font-bold text-gray-900 mb-4">Event Calendar</h2>
-      {error && <p className="text-red-500">{error}</p>}
-      <FullCalendar
-        plugins={[dayGridPlugin]}
-        initialView="dayGridMonth"
-        events={events}
-      />
+      {loading ? (
+        <div className="text-center py-8">
+          <p className="text-gray-600">Loading events...</p>
+        </div>
+      ) : (
+        <FullCalendar
+          plugins={[dayGridPlugin]}
+          initialView="dayGridMonth"
+          events={events}
+          height="auto"
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth'
+          }}
+          eventDisplay="block"
+          dayMaxEvents={3}
+          moreLinkClick="popover"
+        />
+      )}
     </div>
   );
 }

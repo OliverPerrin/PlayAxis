@@ -1,20 +1,37 @@
-
 import React, { useEffect, useState } from 'react';
 import { getWeather } from '../api';
 
 function Weather() {
   const [weather, setWeather] = useState(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchWeather = (lat, lon) => {
-      getWeather(lat, lon)
-        .then(data => {
-          setWeather(data);
-        })
-        .catch(error => {
-          setError(error.message);
-        });
+    const fetchWeather = async (lat, lon) => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const data = await getWeather(lat, lon);
+        
+        // The Open-Meteo API returns different structure than OpenWeatherMap
+        if (data && data.current_weather) {
+          const currentWeather = data.current_weather;
+          setWeather({
+            temperature: currentWeather.temperature,
+            windspeed: currentWeather.windspeed,
+            weathercode: currentWeather.weathercode,
+            time: currentWeather.time
+          });
+        } else {
+          setError('Weather data format not recognized');
+        }
+      } catch (error) {
+        console.error('Weather fetch error:', error);
+        setError('Unable to fetch weather data');
+      } finally {
+        setLoading(false);
+      }
     };
 
     if (navigator.geolocation) {
@@ -23,24 +40,65 @@ function Weather() {
           fetchWeather(position.coords.latitude, position.coords.longitude);
         },
         error => {
-          setError('Error getting location: ' + error.message);
-        }
+          console.error('Geolocation error:', error);
+          setError('Location access denied. Weather unavailable.');
+          setLoading(false);
+        },
+        { timeout: 10000, enableHighAccuracy: false }
       );
     } else {
-      setError('Geolocation is not supported by this browser.');
+      setError('Geolocation not supported by browser');
+      setLoading(false);
     }
   }, []);
+
+  // Helper function to get weather description from code
+  const getWeatherDescription = (code) => {
+    const weatherCodes = {
+      0: 'Clear sky',
+      1: 'Mainly clear',
+      2: 'Partly cloudy',
+      3: 'Overcast',
+      45: 'Fog',
+      48: 'Depositing rime fog',
+      51: 'Light drizzle',
+      53: 'Moderate drizzle',
+      55: 'Dense drizzle',
+      61: 'Slight rain',
+      63: 'Moderate rain',
+      65: 'Heavy rain',
+      71: 'Slight snow fall',
+      73: 'Moderate snow fall',
+      75: 'Heavy snow fall',
+      95: 'Thunderstorm'
+    };
+    return weatherCodes[code] || 'Unknown weather';
+  };
 
   return (
     <div className="bg-white shadow rounded-lg p-4 mt-4">
       <h2 className="text-lg font-bold text-gray-900 mb-4">Current Weather</h2>
-      {error && <p className="text-red-500">{error}</p>}
-      {weather && (
-        <div>
-          <p className="font-semibold">{weather.name}</p>
-          <p>{weather.weather[0].main} - {weather.weather[0].description}</p>
-          <p>Temperature: {weather.main.temp}°K</p>
-          <p>Humidity: {weather.main.humidity}%</p>
+      
+      {loading && (
+        <div className="text-center py-4">
+          <p className="text-gray-600">Loading weather...</p>
+        </div>
+      )}
+      
+      {error && !loading && (
+        <div className="text-center py-4">
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
+      
+      {weather && !loading && (
+        <div className="space-y-2">
+          <p className="text-lg font-semibold">{weather.temperature}°C</p>
+          <p className="text-gray-700">{getWeatherDescription(weather.weathercode)}</p>
+          <p className="text-sm text-gray-600">Wind: {weather.windspeed} km/h</p>
+          <p className="text-xs text-gray-500">
+            Last updated: {new Date(weather.time).toLocaleTimeString()}
+          </p>
         </div>
       )}
     </div>
