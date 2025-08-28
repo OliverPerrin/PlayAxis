@@ -1,17 +1,18 @@
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.schemas.user import User
+from app.schemas.recommendation import Recommendation
 from app.services.eventbrite import get_eventbrite_events
 from app.services.twitch import get_twitch_streams
 from app.services.sportsdataio import get_sportsdataio_events
-from typing import List, Dict, Any
+from typing import List
 
 router = APIRouter()
 
-@router.get("/", response_model=List[Dict[str, Any]])
+@router.get("/", response_model=List[Recommendation])
 async def get_recommendations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -27,8 +28,9 @@ async def get_recommendations(
         try:
             eventbrite_query = interest.name
             eventbrite_data = await get_eventbrite_events(eventbrite_query)
-            for event in eventbrite_data.events:
-                recommended_events.append({"type": "eventbrite", "data": event})
+            if "events" in eventbrite_data:
+                for event in eventbrite_data["events"]:
+                    recommended_events.append({"type": "eventbrite", "data": event})
         except Exception as e:
             print(f"Error fetching Eventbrite events for {interest.name}: {e}")
 
@@ -39,8 +41,9 @@ async def get_recommendations(
         if interest.name.lower() in twitch_game_mapping:
             try:
                 twitch_data = await get_twitch_streams(twitch_game_mapping[interest.name.lower()])
-                for stream in twitch_data.data:
-                    recommended_events.append({"type": "twitch", "data": stream})
+                if "data" in twitch_data:
+                    for stream in twitch_data["data"]:
+                        recommended_events.append({"type": "twitch", "data": stream})
             except Exception as e:
                 print(f"Error fetching Twitch streams for {interest.name}: {e}")
 
