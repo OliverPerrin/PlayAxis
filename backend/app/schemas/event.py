@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from typing import Optional
 
 class EventBase(BaseModel):
@@ -7,7 +7,7 @@ class EventBase(BaseModel):
     description: Optional[str] = None
     start_time: datetime
     end_time: Optional[datetime] = None
-    url: Optional[HttpUrl]
+    url: Optional[str] = None
     source: str
     niche: str
 
