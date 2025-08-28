@@ -1,39 +1,55 @@
 import React, { useState } from 'react';
+import { login } from '../api';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
 
     if (!email || !password) {
       setError('Email and password are required.');
       return;
     }
 
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      const response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          username: email,
-          password: password,
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to login');
+      const data = await login(email, password);
+      
+      if (data.access_token) {
+        localStorage.setItem('token', data.access_token);
+        // Redirect or refresh the page
+        window.location.reload();
+      } else {
+        setError('Login failed: No access token received');
       }
-      const data = await response.json();
-      localStorage.setItem('token', data.access_token);
-      // TODO: Redirect the user to the home page
-      window.location.reload();
     } catch (error) {
-      setError(error.message);
+      console.error('Login error:', error);
+      
+      // Handle different types of errors
+      if (error.message.includes('401')) {
+        setError('Invalid email or password. Please try again.');
+      } else if (error.message.includes('400')) {
+        setError('Please check your email and password format.');
+      } else if (error.message.includes('timeout')) {
+        setError('Request timeout. Please check your connection and try again.');
+      } else if (error.message.includes('fetch')) {
+        setError('Unable to connect to server. Please try again later.');
+      } else {
+        setError(error.message || 'An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -52,6 +68,8 @@ function Login() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={isLoading}
+            required
           />
         </div>
         <div className="mb-6">
@@ -65,16 +83,28 @@ function Login() {
             placeholder="******************"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
+            required
           />
         </div>
         <div className="flex items-center justify-between">
           <button
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
-            type="submit">
-            Sign In
+            className={`w-full font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
+              isLoading 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-blue-500 hover:bg-blue-700 text-white'
+            }`}
+            type="submit"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
         </div>
-        {error && <p className="text-red-500 text-xs italic mt-4 text-center">{error}</p>}
+        {error && (
+          <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
       </form>
     </div>
   );
