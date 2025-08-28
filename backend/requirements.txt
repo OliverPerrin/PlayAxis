@@ -13,8 +13,7 @@ httpx
 idna
 Mako
 MarkupSafe
-psycopg2-binary
-psycopg2
+psycopg2-binary>=2.9
 pydantic
 pydantic-settings
 pydantic_core
