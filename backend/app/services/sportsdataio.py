@@ -26,7 +26,7 @@ async def get_sportsdataio_events(sport: str):
         for year in [current_year, current_year + 1]:
             try:
                 params = {
-                    "key": settings.SPORTSDATAIO_API_KEY,
+                    "key": settings.X_RapidAPI_KEY,
                 }
                 
                 async with httpx.AsyncClient(timeout=30.0) as client:
