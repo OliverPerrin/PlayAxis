@@ -7,7 +7,7 @@ from app.schemas.user import User
 from app.schemas.recommendation import Recommendation
 from app.services.eventbrite import get_eventbrite_events
 from app.services.twitch import get_twitch_streams
-from app.services.sportsdataio import get_sportsdataio_events
+from backend.app.services.sportsradar import get_sportsdataio_events
 from typing import List
 
 router = APIRouter()
