@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # API Keys
     TWITCH_CLIENT_ID: str
     TWITCH_ACCESS_TOKEN: str
-    SPORTSDATAIO_API_KEY: str
+    X_RapidAPI_KEY: str
     TWITCH_CLIENT_SECRET: str
     EVENTBRITE_API_KEY: str
     EVENTBRITE_CLIENT_SECRET: str | None = None
