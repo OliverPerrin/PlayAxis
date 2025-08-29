@@ -1,8 +1,19 @@
 // Dynamically determine API URL based on environment
 const getAPIUrl = () => {
+  // Check for explicit environment variable first
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL.replace(/\/$/, '') + '/api/v1';
+  }
+  
   // Check if we're in development (localhost)
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return '/api/v1'; // Use proxy in development
+  }
+  
+  // Check if we're on Netlify (common pattern)
+  if (window.location.hostname.includes('netlify.app')) {
+    // Use the redirect proxy we set up in netlify.toml
+    return '/api/v1';
   }
   
   // In production, construct the API URL
