@@ -12,8 +12,8 @@ const getAPIUrl = () => {
   
   // Check if we're on Netlify (common pattern)
   if (window.location.hostname.includes('netlify.app')) {
-    // Use the redirect proxy we set up in netlify.toml
-    return '/api/v1';
+    // Use HTTP URL to avoid redirect issues
+    return 'http://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/v1';
   }
   
   // In production, construct the API URL
@@ -59,7 +59,8 @@ const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
   try {
     const response = await fetch(url, {
       ...options,
-      signal: controller.signal
+      signal: controller.signal,
+      redirect: 'follow'  // Explicitly follow redirects
     });
     clearTimeout(timeoutId);
     return response;
@@ -126,10 +127,15 @@ export const getWeather = async (lat, lon) => {
       throw new Error('Latitude and longitude are required');
     }
     
+    console.log('Making weather API request to:', `${API_URL}/weather?lat=${lat}&lon=${lon}`);
+    
     const response = await fetchWithTimeout(`${API_URL}/weather?lat=${lat}&lon=${lon}`, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
+    
+    console.log('Weather API response status:', response.status, response.statusText);
+    console.log('Weather API response headers:', Object.fromEntries(response.headers.entries()));
     
     return await handleResponse(response);
   } catch (error) {

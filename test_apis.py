@@ -16,7 +16,7 @@ load_dotenv()
 EVENTBRITE_PRIVATE_TOKEN = os.getenv("EVENTBRITE_PRIVATE_TOKEN")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")  
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
-SPORTSDATAIO_API_KEY = os.getenv("SPORTSDATAIO_API_KEY")
+SPORTSDATAIO_API_KEY = os.getenv("X_RapidAPI_KEY")  # Match the .env file
 
 async def test_eventbrite():
     """Test Eventbrite API"""
