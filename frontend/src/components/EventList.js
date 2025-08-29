@@ -45,10 +45,10 @@ function EventList({ selectedInterests }) {
                   <p className="text-sm text-gray-600">Viewers: {item.data.viewer_count}</p>
                 </>
               )}
-              {item.type === 'sportsdataio' && (
+              {item.type === 'sportsbook' && (
                 <>
-                  <p className="font-semibold">{item.data.HomeTeam} vs {item.data.AwayTeam}</p>
-                  <p className="text-sm text-gray-600">{new Date(item.data.Date).toLocaleString()}</p>
+                  <p className="font-semibold">{item.data.home_team} vs {item.data.away_team}</p>
+                  <p className="text-sm text-gray-600">{new Date(item.data.commence_time).toLocaleString()}</p>
                 </>
               )}
             </li>

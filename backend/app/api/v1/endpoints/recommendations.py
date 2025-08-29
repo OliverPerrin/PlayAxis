@@ -47,18 +47,18 @@ async def get_recommendations(
             except Exception as e:
                 print(f"Error fetching Twitch streams for {interest.name}: {e}")
 
-        # SportsData.io events (example mapping)
-        sportsdataio_sport_mapping = {
-            'american football': 'NFL',
-            'soccer': 'Soccer',
-            'tennis': 'Tennis',
+        # Sportsbook events (example mapping)
+        sportsbook_sport_mapping = {
+            'american football': 'americanfootball_nfl',
+            'soccer': 'soccer_usa_mls',
+            'tennis': 'tennis_atp',
         }
-        if interest.name.lower() in sportsdataio_sport_mapping:
+        if interest.name.lower() in sportsbook_sport_mapping:
             try:
-                sportsdataio_data = await get_sportsdataio_events(sportsdataio_sport_mapping[interest.name.lower()])
-                for sport_event in sportsdataio_data:
-                    recommended_events.append({"type": "sportsdataio", "data": sport_event})
+                sportsbook_data = await get_sportsbook_events(sportsbook_sport_mapping[interest.name.lower()])
+                for sport_event in sportsbook_data:
+                    recommended_events.append({"type": "sportsbook", "data": sport_event})
             except Exception as e:
-                print(f"Error fetching SportsData.io events for {interest.name}: {e}")
+                print(f"Error fetching Sportsbook events for {interest.name}: {e}")
 
     return recommended_events

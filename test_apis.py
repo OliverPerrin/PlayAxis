@@ -199,11 +199,11 @@ async def main():
         print("- EVENTBRITE_PRIVATE_TOKEN")
         print("- TWITCH_CLIENT_ID") 
         print("- TWITCH_CLIENT_SECRET")
-        print("- SPORTSDATAIO_API_KEY")
+        print("- X_RapidAPI_KEY (for Sportsbook)")
         print("\n📝 Make sure to get valid keys from:")
         print("- Eventbrite: https://www.eventbrite.com/platform/api/")
         print("- Twitch: https://dev.twitch.tv/console/apps")  
-        print("- SportsData.io: https://sportsdata.io/")
+        print("- Sportsbook API on RapidAPI: https://rapidapi.com/theoddsapi/api/live-sports-odds")
     else:
         print("🎉 All APIs are working! Your app should now receive data.")
 
