@@ -33,7 +33,7 @@ async def get_eventbrite_events(query: str, lat: float = None, lon: float = None
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
-                f"{settings.EVENTBRITE_API_URL}/events/search/",
+                f"{settings.EVENTBRITE_API_URL}events/search/",
                 headers=headers,
                 params=params,
             )

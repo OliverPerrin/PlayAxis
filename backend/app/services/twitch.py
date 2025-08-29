@@ -64,7 +64,7 @@ async def get_twitch_streams(game_id: str):
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
-                f"{settings.TWITCH_API_URL}/streams",
+                "https://api.twitch.tv/helix/streams",
                 headers=headers,
                 params=params,
             )
@@ -77,7 +77,7 @@ async def get_twitch_streams(game_id: str):
                 if token:
                     headers["Authorization"] = f"Bearer {token}"
                     response = await client.get(
-                        f"{settings.TWITCH_API_URL}/streams",
+                        "https://api.twitch.tv/helix/streams",
                         headers=headers,
                         params=params,
                     )

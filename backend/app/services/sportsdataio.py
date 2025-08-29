@@ -32,7 +32,7 @@ async def get_sportsdataio_events(sport: str):
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     # Try schedules endpoint first
                     response = await client.get(
-                        f"{settings.SPORTSDATAIO_API_URL}/{api_sport}/scores/json/Schedules/{year}",
+                        f"https://api.sportsdata.io/v3/{api_sport}/scores/json/Schedules/{year}",
                         params=params,
                     )
                     

@@ -22,7 +22,10 @@ allowed_origins = [
 # Add production frontend URL if provided
 frontend_url = os.getenv("FRONTEND_URL")
 if frontend_url:
+    # Remove trailing slash and % if present
+    frontend_url = frontend_url.rstrip('/%')
     allowed_origins.append(frontend_url)
+    allowed_origins.append("https://prismatic-sawine-b2188b.netlify.app")
 
 # For development, you might want to allow all origins
 # Remove this in production for security

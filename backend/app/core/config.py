@@ -1,5 +1,6 @@
 import os
 from pydantic_settings import BaseSettings
+
 class Settings(BaseSettings):
     # Security
     SECRET_KEY: str
@@ -18,15 +19,18 @@ class Settings(BaseSettings):
 
     # API URLs
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3/"
+    WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
     TWITCH_API_URL: str = "https://localhost:8000/"
     SPORTSDATAIO_API_URL: str = "https://rapidapi.com/"
-    WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
 
     # Database
     DATABASE_URL: str
 
+    # Frontend
+    FRONTEND_URL: str | None = None
+
     class Config:
-        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+        env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 
 settings = Settings()
 
