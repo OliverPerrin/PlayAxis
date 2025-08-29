@@ -1,6 +1,6 @@
 
 from fastapi import APIRouter, HTTPException
-from backend.app.services.sportsradar import get_sportsdataio_events
+from backend.app.services.sportsbook import get_sportsbook_events
 
 router = APIRouter()
 
