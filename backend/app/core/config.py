@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     EVENTBRITE_PUBLIC_TOKEN: str
 
     # API URLs
-    EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3"
-    TWITCH_API_URL: str = "https://api.twitch.tv/helix"
-    SPORTSDATAIO_API_URL: str = "https://api.sportsdata.io/v3"
-    WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
+    EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3/"
+    TWITCH_API_URL: str = "https://localhost:8000/"
+    SPORTSDATAIO_API_URL: str = "https://rapidapi.com/"
+    WEATHER_API_URL: str = "https://api.open-meteo.com/v1/forecast/"
 
     # Database
     DATABASE_URL: str
