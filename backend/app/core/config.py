@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3/"
     TWITCH_API_URL: str = "https://localhost:8000/"
     SPORTSDATAIO_API_URL: str = "https://rapidapi.com/"
-    WEATHER_API_URL: str = "https://api.open-meteo.com/v1/forecast/"
+    WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
 
     # Database
     DATABASE_URL: str
