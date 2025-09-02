@@ -1,16 +1,21 @@
 import httpx
 from app.core.config import settings
 import logging
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-async def get_eventbrite_events(query: str, lat: float = None, lon: float = None):
+async def get_eventbrite_events(query: str, lat: float = None, lon: float = None, current_user: User = None):
     """
     Fetches events from the Eventbrite API based on a query.
     """
     try:
+        token = settings.EVENTBRITE_PRIVATE_TOKEN
+        if current_user and current_user.eventbrite_access_token:
+            token = current_user.eventbrite_access_token
+
         headers = {
-            "Authorization": f"Bearer {settings.EVENTBRITE_PRIVATE_TOKEN}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
         

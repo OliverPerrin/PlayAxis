@@ -1,26 +1,16 @@
 services:
-  db:
-    image: postgres:15
-    container_name: events-db
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: events
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
   backend:
     build: ./backend
-    depends_on:
-      - db
-    environment:
-      DATABASE_URL: postgresql://user:password@db:5432/events
-      JWT_SECRET: your_jwt_secret
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
-    # …
 
-volumes:
-  pgdata:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - backend
