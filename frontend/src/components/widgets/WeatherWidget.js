@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   SunIcon,
   CloudIcon,
-  CloudRainIcon,
+  
   SnowflakeIcon,
   BoltIcon,
   EyeIcon,
@@ -62,7 +62,7 @@ const WeatherWidget = () => {
   const getWeatherIcon = (code) => {
     if (code === 0 || code === 1) return SunIcon;
     if (code === 2 || code === 3) return CloudIcon;
-    if (code >= 61 && code <= 67) return CloudRainIcon;
+    if (code >= 61 && code <= 67) return CloudIcon;
     if (code >= 71 && code <= 77) return SnowflakeIcon;
     if (code >= 95) return BoltIcon;
     return CloudIcon;
