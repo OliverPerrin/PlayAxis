@@ -21,7 +21,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Hooks
-import { useLocalStorage } from './hooks/useLocalStorage';
+import { useLocalStorage } from './hooks/UseLocalStorage';
 
 function AppContent() {
   const { user, loading } = useAuth();
