@@ -1,51 +1,100 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import Header from './components/Header';
-import Calendar from './components/Calendar';
-import UserProfile from './components/UserProfile';
-import EventList from './components/EventList';
-import Weather from './components/Weather';
-import Login from './components/Login';
-import Signup from './components/Signup';
-import Profile from './components/Profile';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
+import { AnimatePresence, motion } from 'framer-motion';
 
-function App() {
-  const [selectedInterests, setSelectedInterests] = useState([]);
-  const [showLogin, setShowLogin] = useState(true);
+// Layout Components
+import Navbar from './components/layout/Navbar';
+import Sidebar from './components/layout/Sidebar';
+import Footer from './components/layout/Footer';
+
+// Pages
+import HomePage from './pages/HomePage';
+import EventsPage from './pages/EventsPage';
+import MyStatsPage from './pages/MyStatsPage';
+import ComparePage from './pages/ComparePage';
+import ProfilePage from './pages/ProfilePage';
+import LeaderboardsPage from './pages/LeaderboardsPage';
+import AuthPage from './pages/AuthPage';
+
+// Context
+import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+
+// Hooks
+import { useLocalStorage } from './hooks/useLocalStorage';
+
+function AppContent() {
+  const { user, loading } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [theme, setTheme] = useLocalStorage('theme', 'dark');
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-4 border-white border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
 
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-100">
-        <Header />
-        <main>
-          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <Routes>
-              <Route path="/" element={
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-2">
-                    <Calendar selectedInterests={selectedInterests} />
-                  </div>
-                  <div>
-                    {showLogin ? (
-                      <Login />
-                    ) : (
-                      <Signup />
-                    )}
-                    <button onClick={() => setShowLogin(!showLogin)} className="text-blue-500 hover:underline mt-4">
-                      {showLogin ? 'Need to create an account?' : 'Already have an account?'}
-                    </button>
-                    <UserProfile selectedInterests={selectedInterests} setSelectedInterests={setSelectedInterests} />
-                    <Weather />
-                    <EventList selectedInterests={selectedInterests} />
-                  </div>
-                </div>
-              } />
-              <Route path="/profile" element={<Profile />} />
-            </Routes>
-          </div>
-        </main>
-      </div>
-    </Router>
+    <div className={`min-h-screen transition-colors duration-300 ${
+      theme === 'dark' 
+        ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-indigo-900' 
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
+      {user && (
+        <>
+          <Navbar setSidebarOpen={setSidebarOpen} theme={theme} setTheme={setTheme} />
+          <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        </>
+      )}
+      
+      <main className={user ? "lg:pl-64 pt-16" : ""}>
+        <AnimatePresence mode="wait">
+          <Routes>
+            <Route path="/auth" element={
+              user ? <Navigate to="/" replace /> : <AuthPage />
+            } />
+            <Route path="/" element={
+              user ? <HomePage /> : <Navigate to="/auth" replace />
+            } />
+            <Route path="/events" element={
+              user ? <EventsPage /> : <Navigate to="/auth" replace />
+            } />
+            <Route path="/stats" element={
+              user ? <MyStatsPage /> : <Navigate to="/auth" replace />
+            } />
+            <Route path="/compare" element={
+              user ? <ComparePage /> : <Navigate to="/auth" replace />
+            } />
+            <Route path="/profile" element={
+              user ? <ProfilePage /> : <Navigate to="/auth" replace />
+            } />
+            <Route path="/leaderboards" element={
+              user ? <LeaderboardsPage /> : <Navigate to="/auth" replace />
+            } />
+          </Routes>
+        </AnimatePresence>
+      </main>
+
+      {user && <Footer />}
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
