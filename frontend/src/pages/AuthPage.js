@@ -29,24 +29,31 @@ const AuthPage = () => {
 
     try {
       if (isLogin) {
-        await login(formData.email, formData.password);
-        toast.success('Welcome back!');
+        // Handle login
+        const data = await login(formData.email, formData.password);
+        if (data) {
+          toast.success('Welcome back!');
+        }
       } else {
+        // Handle signup
         await signup(formData.email, formData.password, formData.fullName);
-        toast.success('Account created! Please login.');
-        setIsLogin(true);
+        toast.success('Account created! Please sign in.');
+        setIsLogin(true); // Switch to login form after successful signup
+        setFormData(prev => ({...prev, password: ''})); // Clear password
       }
     } catch (error) {
-      toast.error(error.message || 'Something went wrong');
+      console.error('Auth error:', error);
+      toast.error(error.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }));
   };
 
@@ -123,9 +130,8 @@ const AuthPage = () => {
                     <input
                       type="text"
                       name="fullName"
-                      placeholder="Full Name"
                       value={formData.fullName}
-                      onChange={handleChange}
+                      onChange={handleInputChange}
                       className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                       required={!isLogin}
                     />
@@ -139,9 +145,8 @@ const AuthPage = () => {
               <input
                 type="email"
                 name="email"
-                placeholder="Email"
                 value={formData.email}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                 required
               />
@@ -152,9 +157,8 @@ const AuthPage = () => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="password"
-                placeholder="Password"
                 value={formData.password}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 className="w-full pl-10 pr-12 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                 required
               />

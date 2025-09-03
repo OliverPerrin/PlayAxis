@@ -1,55 +1,27 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getCurrentUser } from '../api';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { login as apiLogin } from '../api';
 
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const userData = await getCurrentUser();
-          setUser(userData);
-        } catch (error) {
-          console.error('Auth initialization failed:', error);
-          localStorage.removeItem('token');
-        }
-      }
-      setLoading(false);
-    };
-
-    initAuth();
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Here you could add logic to validate the token and fetch user data
+      setUser({ token });
+    }
   }, []);
 
   const login = async (email, password) => {
-    const response = await fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ username: email, password }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Login failed');
+    const data = await apiLogin(email, password);
+    if (data.access_token) {
+      localStorage.setItem('token', data.access_token);
+      setUser({ token: data.access_token });
+      return data;
     }
-
-    const data = await response.json();
-    localStorage.setItem('token', data.access_token);
-    
-    const userData = await getCurrentUser();
-    setUser(userData);
-    return data;
+    throw new Error('Login failed');
   };
 
   const logout = () => {
@@ -57,17 +29,11 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const value = {
-    user,
-    login,
-    logout,
-    loading,
-    isAuthenticated: !!user
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => useContext(AuthContext);
