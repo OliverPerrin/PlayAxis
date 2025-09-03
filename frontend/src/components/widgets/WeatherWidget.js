@@ -4,7 +4,7 @@ import {
   SunIcon,
   CloudIcon,
   
-  SnowflakeIcon,
+  
   BoltIcon,
   EyeIcon,
   MapPinIcon
@@ -63,7 +63,7 @@ const WeatherWidget = () => {
     if (code === 0 || code === 1) return SunIcon;
     if (code === 2 || code === 3) return CloudIcon;
     if (code >= 61 && code <= 67) return CloudIcon;
-    if (code >= 71 && code <= 77) return SnowflakeIcon;
+    if (code >= 71 && code <= 77) return CloudIcon;
     if (code >= 95) return BoltIcon;
     return CloudIcon;
   };
