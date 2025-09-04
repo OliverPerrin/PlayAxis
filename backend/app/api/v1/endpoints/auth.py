@@ -1,97 +1,56 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from app.db.session import get_db
-from app.schemas.user import UserCreate, User
-from app.schemas.token import Token
-from app.crud.user import get_user_by_email, create_user
-from app.core.security import verify_password, create_access_token
-from app.core.dependencies import get_current_user
-import logging
+from typing import Optional
 
-# Set up logging
-logger = logging.getLogger(__name__)
+# From app/api/v1/endpoints -> up to app/
+from ....deps import get_db
+from .... import models, schemas, security
 
 router = APIRouter()
 
-@router.post("/signup", response_model=User)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
-    try:
-        # Check if user already exists
-        db_user = get_user_by_email(db, email=user.email)
-        if db_user:
-            raise HTTPException(
-                status_code=400, 
-                detail="Email already registered"
-            )
-        
-        # Create new user
-        new_user = create_user(db=db, user=user)
-        logger.info(f"New user created: {user.email}")
-        return new_user
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Signup error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error during signup"
-        )
+@router.post("/register", response_model=schemas.UserOut)
+def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
+    if db.query(models.User).filter(models.User.username == body.username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+    if db.query(models.User).filter(models.User.email == body.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-@router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    try:
-        # Validate input
-        if not form_data.username or not form_data.password:
-            raise HTTPException(
-                status_code=400,
-                detail="Email and password are required"
-            )
-        
-        # Get user from database
-        user = get_user_by_email(db, email=form_data.username)
-        if not user:
-            logger.warning(f"Login attempt with non-existent email: {form_data.username}")
-            raise HTTPException(
-                status_code=401,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # Verify password
-        if not verify_password(form_data.password, user.hashed_password):
-            logger.warning(f"Failed login attempt for user: {form_data.username}")
-            raise HTTPException(
-                status_code=401,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # Check if user is active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=401,
-                detail="Account is inactive",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # Create access token
-        access_token = create_access_token(subject=user.email)
-        logger.info(f"Successful login for user: {user.email}")
-        
-        return {"access_token": access_token, "token_type": "bearer"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Login error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error during login"
-        )
+    user = models.User(
+        username=body.username,
+        email=body.email,
+        password_hash=security.hash_password(body.password),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
-@router.get("/me", response_model=User)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user information"""
-    return current_user
+@router.post("/login", response_model=schemas.Token)
+def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
+    if not body.username and not body.email:
+        raise HTTPException(status_code=400, detail="Provide username or email")
+    q = db.query(models.User)
+    user = None
+    if body.username:
+        user = q.filter(models.User.username == body.username).first()
+    if not user and body.email:
+        user = q.filter(models.User.email == body.email).first()
+    if not user or not security.verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username/email or password")
+    token = security.create_access_token(sub=str(user.id))
+    return {"access_token": token}
+
+@router.get("/me", response_model=schemas.UserOut)
+def me(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = security.decode_token(token)
+        uid = int(payload.get("sub"))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = db.get(models.User, uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

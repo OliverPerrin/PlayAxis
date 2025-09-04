@@ -8,10 +8,7 @@ RAW_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
 if RAW_URL.startswith("postgres://"):
     RAW_URL = RAW_URL.replace("postgres://", "postgresql://", 1)
 
-# Optional: explicitly use psycopg3 driver
-# if RAW_URL.startswith("postgresql://"):
-#     RAW_URL = RAW_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-
+# SQLite needs special connect args
 connect_args = {"check_same_thread": False} if RAW_URL.startswith("sqlite") else {}
 
 engine = create_engine(RAW_URL, echo=False, future=True, connect_args=connect_args)

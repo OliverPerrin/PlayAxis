@@ -2,19 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
-# Import the router directly from the module (no package-level indirection)
-from .api.v1.Auth import router as auth_router
+from .api.v1.api import api_router
 
-# Create DB tables
+# Initialize DB
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MultiSportApp API", version="1.0.0")
 
-# CORS: allow Netlify origin and local dev
-origins = [
-    "http://localhost:3000",
-    "https://*.netlify.app",
-]
+# CORS for local dev and Netlify
+origins = ["http://localhost:3000"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -24,8 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount API v1 routers
-app.include_router(auth_router, prefix="/api/v1")
+# Mount API v1
+app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/api/v1/healthz")
 def health():
