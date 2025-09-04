@@ -4,47 +4,61 @@ from typing import Optional
 import logging
 
 from ....deps import get_db
-from .... import models, schemas, security
+# Use the canonical User model (email + hashed_password + full_name)
+from ....models.user import User
+# Use the lightweight auth schemas; we will shape responses to match
+from ....schemas import RegisterIn, LoginIn, UserOut, Token
+from .... import security
 
 logger = logging.getLogger("auth")
 router = APIRouter()
 
-@router.post("/register", response_model=schemas.UserOut)
-def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
+def derive_username(preferred: Optional[str], email: str, full_name: Optional[str]) -> str:
+    return preferred or full_name or (email.split("@")[0] if "@" in email else email)
+
+@router.post("/register", response_model=UserOut)
+def register(body: RegisterIn, db: Session = Depends(get_db)):
     try:
-        if db.query(models.User).filter(models.User.username == body.username).first():
-            raise HTTPException(status_code=400, detail="Username already taken")
-        if db.query(models.User).filter(models.User.email == body.email).first():
+        # Enforce email uniqueness only (model doesn't have username)
+        if db.query(User).filter(User.email == body.email).first():
             raise HTTPException(status_code=400, detail="Email already registered")
 
-        user = models.User(
-            username=body.username,
+        # Map provided username to full_name for now
+        full_name = body.username
+
+        user = User(
             email=body.email,
-            password_hash=security.hash_password(body.password),
+            hashed_password=security.hash_password(body.password),
+            full_name=full_name,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-        return user
+
+        # Shape response to include a username value
+        return {
+            "id": user.id,
+            "username": derive_username(body.username, user.email, user.full_name),
+            "email": user.email,
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("register failed")
         raise HTTPException(status_code=500, detail="Registration failed. Please try again.") from e
 
-@router.post("/login", response_model=schemas.Token)
-def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
+@router.post("/login", response_model=Token)
+def login(body: LoginIn, db: Session = Depends(get_db)):
     try:
         if not body.username and not body.email:
             raise HTTPException(status_code=400, detail="Provide username or email")
-        q = db.query(models.User)
-        user = None
-        if body.username:
-            user = q.filter(models.User.username == body.username).first()
-        if not user and body.email:
-            user = q.filter(models.User.email == body.email).first()
-        if not user or not security.verify_password(body.password, user.password_hash):
+
+        # Treat username field as an email identifier if provided
+        identifier = (body.email or body.username or "").strip()
+        user = db.query(User).filter(User.email == identifier).first()
+        if not user or not security.verify_password(body.password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid username/email or password")
+
         token = security.create_access_token(sub=str(user.id))
         return {"access_token": token}
     except HTTPException:
@@ -53,7 +67,7 @@ def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
         logger.exception("login failed")
         raise HTTPException(status_code=500, detail="Login failed. Please try again.") from e
 
-@router.get("/me", response_model=schemas.UserOut)
+@router.get("/me", response_model=UserOut)
 def me(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -63,7 +77,13 @@ def me(authorization: Optional[str] = Header(None), db: Session = Depends(get_db
         uid = int(payload.get("sub"))
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
-    user = db.get(models.User, uid)
+
+    user = db.get(User, uid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+
+    return {
+        "id": user.id,
+        "username": derive_username(None, user.email, user.full_name),
+        "email": user.email,
+    }
