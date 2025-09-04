@@ -3,19 +3,19 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Security
-    SECRET_KEY: str
+    SECRET_KEY: str | None = None
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # API Keys
-    TWITCH_CLIENT_ID: str
-    TWITCH_ACCESS_TOKEN: str
-    X_RapidAPI_KEY: str
-    TWITCH_CLIENT_SECRET: str
-    EVENTBRITE_API_KEY: str
+    TWITCH_CLIENT_ID: str | None = None
+    TWITCH_ACCESS_TOKEN: str | None = None
+    X_RapidAPI_KEY: str | None = None
+    TWITCH_CLIENT_SECRET: str | None = None
+    EVENTBRITE_API_KEY: str | None = None
     EVENTBRITE_CLIENT_SECRET: str | None = None
-    EVENTBRITE_PRIVATE_TOKEN: str
-    EVENTBRITE_PUBLIC_TOKEN: str
+    EVENTBRITE_PRIVATE_TOKEN: str | None = None
+    EVENTBRITE_PUBLIC_TOKEN: str | None = None
 
     # API URLs
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3/"

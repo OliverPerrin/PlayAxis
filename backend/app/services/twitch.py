@@ -1,90 +1,58 @@
+import time
 import httpx
+from typing import Optional, List, Dict
 from app.core.config import settings
-import logging
-from datetime import datetime, timedelta
 
-logger = logging.getLogger(__name__)
+_TWITCH_TOKEN: Optional[str] = None
+_TWITCH_TOKEN_EXPIRES_AT: float = 0.0
 
-# Global token storage (in production, use Redis/database)
-_twitch_token_cache = {
-    "token": None,
-    "expires_at": None
-}
+async def _get_app_token() -> str:
+    global _TWITCH_TOKEN, _TWITCH_TOKEN_EXPIRES_AT
+    if _TWITCH_TOKEN and time.time() < _TWITCH_TOKEN_EXPIRES_AT - 60:
+        return _TWITCH_TOKEN
 
-async def get_twitch_access_token():
-    """Get a valid Twitch access token using client credentials flow"""
-    current_time = datetime.now()
-    
-    # Check if we have a valid cached token
-    if (_twitch_token_cache["token"] and 
-        _twitch_token_cache["expires_at"] and 
-        current_time < _twitch_token_cache["expires_at"]):
-        return _twitch_token_cache["token"]
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://id.twitch.tv/oauth2/token",
-                data={
-                    "client_id": settings.TWITCH_CLIENT_ID,
-                    "client_secret": settings.TWITCH_CLIENT_SECRET,
-                    "grant_type": "client_credentials"
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            # Cache the token
-            _twitch_token_cache["token"] = data["access_token"]
-            _twitch_token_cache["expires_at"] = current_time + timedelta(seconds=data["expires_in"] - 300)  # 5 min buffer
-            
-            return data["access_token"]
-    except Exception as e:
-        logger.error(f"Failed to get Twitch access token: {str(e)}")
-        return None
+    data = {
+        "client_id": settings.TWITCH_CLIENT_ID,
+        "client_secret": settings.TWITCH_CLIENT_SECRET,
+        "grant_type": "client_credentials",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post("https://id.twitch.tv/oauth2/token", data=data)
+        r.raise_for_status()
+        payload = r.json()
+        _TWITCH_TOKEN = payload["access_token"]
+        _TWITCH_TOKEN_EXPIRES_AT = time.time() + int(payload.get("expires_in", 3600))
+        return _TWITCH_TOKEN
 
-async def get_twitch_streams(game_id: str):
-    """
-    Fetches live streams from the Twitch API for a specific game.
-    """
-    try:
-        token = await get_twitch_access_token()
-        if not token:
-            return {"data": []}
-        
-        headers = {
-            "Client-ID": settings.TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {token}",
-        }
-        
-        params = {
-            "game_id": game_id,
-            "first": 20,  # Limit results
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                "https://api.twitch.tv/helix/streams",
-                headers=headers,
-                params=params,
-            )
-            
-            if response.status_code == 401:
-                # Token expired, clear cache and retry once
-                _twitch_token_cache["token"] = None
-                _twitch_token_cache["expires_at"] = None
-                token = await get_twitch_access_token()
-                if token:
-                    headers["Authorization"] = f"Bearer {token}"
-                    response = await client.get(
-                        "https://api.twitch.tv/helix/streams",
-                        headers=headers,
-                        params=params,
-                    )
-            
-            response.raise_for_status()
-            return response.json()
-            
-    except Exception as e:
-        logger.error(f"Twitch API error: {str(e)}")
-        return {"data": []}
+async def _get_game_id(game_name: str) -> Optional[str]:
+    token = await _get_app_token()
+    headers = {
+        "Client-Id": settings.TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {token}",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://api.twitch.tv/helix/games", headers=headers, params={"name": game_name})
+        r.raise_for_status()
+        data = r.json()
+        games = data.get("data") or []
+        if not games:
+            return None
+        return games[0].get("id")
+
+async def get_twitch_streams(game_id: Optional[str] = None, game_name: Optional[str] = None, first: int = 12) -> Dict:
+    token = await _get_app_token()
+    headers = {
+        "Client-Id": settings.TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {token}",
+    }
+    if not game_id and game_name:
+        game_id = await _get_game_id(game_name)
+    params = {"first": min(max(first, 1), 20)}
+    if game_id:
+        params["game_id"] = game_id
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://api.twitch.tv/helix/streams", headers=headers, params=params)
+        r.raise_for_status()
+        data = r.json()
+        return {"streams": data.get("data", [])}

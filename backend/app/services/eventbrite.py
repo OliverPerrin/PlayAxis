@@ -5,54 +5,45 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-async def get_eventbrite_events(query: str, lat: float = None, lon: float = None, current_user: User = None):
+async def get_eventbrite_events(query: str, lat: float | None = None, lon: float | None = None, current_user: User | None = None):
     """
-    Fetches events from the Eventbrite API based on a query.
+    Fetch events from Eventbrite using either a user-scoped token (if present) or org-level private token.
     """
     try:
         token = settings.EVENTBRITE_PRIVATE_TOKEN
-        if current_user and current_user.eventbrite_access_token:
+        if current_user and getattr(current_user, "eventbrite_access_token", None):
             token = current_user.eventbrite_access_token
+
+        if not token:
+            logger.warning("Eventbrite token not configured")
+            return {"events": []}
 
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        
-        params = {
-            "q": query,
+        params: dict = {
+            "q": query or "sports",
             "expand": "venue,ticket_availability",
-            "location.address": "online" if not lat else None,
             "sort_by": "date",
         }
-        
-        if lat and lon:
+        if lat is not None and lon is not None:
             params.update({
                 "location.latitude": lat,
                 "location.longitude": lon,
-                "location.within": "50km"
+                "location.within": "50km",
             })
-        
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-        
+        else:
+            # fallback to broader discovery
+            params["location.address"] = "online"
+
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{settings.EVENTBRITE_API_URL}events/search/",
-                headers=headers,
-                params=params,
-            )
-            
-            if response.status_code == 401:
-                logger.error("Eventbrite API authentication failed")
+            r = await client.get("https://www.eventbriteapi.com/v3/events/search/", headers=headers, params=params)
+            if r.status_code != 200:
+                logger.error(f"Eventbrite error {r.status_code}: {r.text}")
                 return {"events": []}
-            
-            response.raise_for_status()
-            return response.json()
-            
-    except httpx.TimeoutException:
-        logger.error("Eventbrite API request timed out")
-        return {"events": []}
+            data = r.json()
+            return data
     except Exception as e:
-        logger.error(f"Eventbrite API error: {str(e)}")
+        logger.exception("Eventbrite API error")
         return {"events": []}
