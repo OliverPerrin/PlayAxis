@@ -98,7 +98,7 @@ const WeatherWidget = () => {
     } else if (temp > 5 && temp <= 15) {
       return { activity: '🥾 Good for hiking!', color: 'text-yellow-400' };
     } else if (code >= 61 && code <= 67) {
-      return { activity: '🏋️‍♀️ Indoor workout day!', color: 'text-purple-400' };
+      return { activity: '🏋️‍♀️ Indoor workout day!', color: 'text-emerald-400' };
     } else {
       return { activity: '🧘‍♀️ Yoga at home!', color: 'text-pink-400' };
     }
@@ -203,7 +203,7 @@ const WeatherWidget = () => {
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center opacity-50"
+            className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full flex items-center justify-center opacity-50"
           >
             <SunIcon className="w-4 h-4 text-white" />
           </motion.div>

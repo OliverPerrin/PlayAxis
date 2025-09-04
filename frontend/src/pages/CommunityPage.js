@@ -17,7 +17,7 @@ const CommunityPage = () => {
         </div>
 
         <div className="bg-white/10 border border-white/20 rounded-2xl p-6">
-          <div className="flex items-center gap-2 text-purple-300 mb-4">
+          <div className="flex items-center gap-2 text-cyan-300 mb-4">
             <UserGroupIcon className="w-6 h-6" /> <span>Latest Posts</span>
           </div>
           <div className="space-y-4">
@@ -26,7 +26,7 @@ const CommunityPage = () => {
                 <div className="text-white font-semibold">{p.user}</div>
                 <div className="text-gray-200 mt-1">{p.content}</div>
                 <div className="flex items-center gap-4 mt-3 text-sm text-gray-300">
-                  <div className="flex items-center gap-1"><FireIcon className="w-4 h-4" /> {p.likes}</div>
+                  <div className="flex items-center gap-1"><FireIcon className="w-4 h-4 text-amber-400" /> {p.likes}</div>
                   <div className="flex items-center gap-1"><ChatBubbleLeftRightIcon className="w-4 h-4" /> {p.comments}</div>
                 </div>
               </div>

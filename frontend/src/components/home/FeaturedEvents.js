@@ -54,7 +54,7 @@ const FeaturedEvents = () => {
         <h3 className="text-xl font-bold text-white">Featured Events</h3>
         <motion.button
           whileHover={{ x: 5 }}
-          className="flex items-center space-x-1 text-purple-400 hover:text-purple-300 transition-colors"
+          className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 transition-colors"
         >
           <span>View All</span>
           <ArrowRightIcon className="w-4 h-4" />
@@ -73,7 +73,7 @@ const FeaturedEvents = () => {
           >
             {/* Event Image/Icon */}
             <div className="relative">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-lg flex items-center justify-center">
                 <CalendarIcon className="w-8 h-8 text-white" />
               </div>
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
@@ -85,7 +85,7 @@ const FeaturedEvents = () => {
 
             {/* Event Details */}
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-white truncate group-hover:text-purple-300 transition-colors">
+              <h4 className="font-semibold text-white truncate group-hover:text-emerald-300 transition-colors">
                 {event.name?.text || event.title || 'Event Title'}
               </h4>
               

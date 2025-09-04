@@ -1,26 +1,18 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 
 const Footer = () => {
   return (
-    <motion.footer 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="lg:pl-64 bg-gray-800/30 backdrop-blur-lg border-t border-gray-700/50"
-    >
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          <p className="text-gray-400 text-sm">
-            © 2025 PlayAxis. Built with ❤️ for athletes and sports fans.
-          </p>
-          <div className="flex items-center space-x-4 text-sm text-gray-400">
-            <button className="hover:text-white transition-colors">Privacy</button>
-            <button className="hover:text-white transition-colors">Terms</button>
-            <button className="hover:text-white transition-colors">Support</button>
-          </div>
+    <footer className="mt-10 border-t border-white/10 bg-slate-950/60 backdrop-blur">
+      <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-6 h-6 rounded-md bg-gradient-to-r from-emerald-500 to-cyan-500" />
+          <span className="text-gray-300 text-sm">© {new Date().getFullYear()} PlayAxis</span>
+        </div>
+        <div className="text-gray-400 text-sm">
+          Built for athletes of every level.
         </div>
       </div>
-    </motion.footer>
+    </footer>
   );
 };
 

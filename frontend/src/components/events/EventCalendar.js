@@ -104,7 +104,7 @@ const EventCalendar = ({ events = [] }) => {
               className={`min-h-[100px] p-2 rounded-lg transition-all duration-200 ${
                 day 
                   ? `bg-gray-700/30 hover:bg-gray-700/50 cursor-pointer ${
-                      isToday ? 'ring-2 ring-purple-500 bg-purple-500/10' : ''
+                      isToday ? 'ring-2 ring-emerald-500 bg-purple-500/10' : ''
                     }`
                   : 'bg-transparent'
               }`}
@@ -112,7 +112,7 @@ const EventCalendar = ({ events = [] }) => {
               {day && (
                 <>
                   <div className={`text-sm font-semibold mb-1 ${
-                    isToday ? 'text-purple-400' : 'text-white'
+                    isToday ? 'text-emerald-400' : 'text-white'
                   }`}>
                     {day}
                   </div>

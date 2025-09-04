@@ -10,11 +10,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { getLeaderboards } from '../api';
 
-// Accepts any of these payload shapes from the backend:
-// - Array
-// - { data: Array }
-// - { leaderboard: Array }
-// - { results: Array }
 const normalizeLeaderboard = (payload, fallbackCategory) => {
   const MOCK_DATA = {
     overall: [
@@ -27,32 +22,26 @@ const normalizeLeaderboard = (payload, fallbackCategory) => {
       { rank: 7, name: 'Tom Hiker', avatar: '🥾', score: 1980, streak: 14, change: 3, country: '🇫🇷' },
       { rank: 8, name: 'Anna Dancer', avatar: '💃', score: 1920, streak: 25, change: -2, country: '🇪🇸' },
     ],
-    running: [
-      { rank: 1, name: 'Alex Runner', avatar: '🏃‍♂️', score: 980, streak: 12, change: 2, country: '🇺🇸' },
-      { rank: 2, name: 'Maya Sprinter', avatar: '🏃‍♀️', score: 955, streak: 9, change: -1, country: '🇮🇳' },
-      { rank: 3, name: 'Leo Pace', avatar: '🏃', score: 932, streak: 8, change: 0, country: '🇧🇷' },
-    ],
   };
-
-  if (!payload) return MOCK_DATA[fallbackCategory] || [];
+  if (!payload) return MOCK_DATA[fallbackCategory] || MOCK_DATA.overall;
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload.data)) return payload.data;
   if (Array.isArray(payload.leaderboard)) return payload.leaderboard;
   if (payload.results && Array.isArray(payload.results)) return payload.results;
-  return MOCK_DATA[fallbackCategory] || [];
+  return MOCK_DATA[fallbackCategory] || MOCK_DATA.overall;
 };
 
 const changeBadge = (n) => {
   if (!n) return <span className="text-gray-400">—</span>;
   if (n > 0) {
     return (
-      <span className="inline-flex items-center text-green-400">
+      <span className="inline-flex items-center text-emerald-400">
         <ArrowTrendingUpIcon className="w-4 h-4 mr-0.5" />+{n}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center text-red-400">
+    <span className="inline-flex items-center text-rose-400">
       <ArrowTrendingDownIcon className="w-4 h-4 mr-0.5" />
       {n}
     </span>
@@ -129,7 +118,7 @@ const LeaderboardsPage = () => {
                     key={c.id}
                     onClick={() => setCategory(c.id)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
-                      active ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'text-gray-300 hover:bg-white/10'
+                      active ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white' : 'text-gray-300 hover:bg-white/10'
                     }`}
                   >
                     {typeof Icon === 'function' ? <Icon /> : <UserIcon className="w-4 h-4" />}
@@ -146,7 +135,7 @@ const LeaderboardsPage = () => {
                     key={t.id}
                     onClick={() => setTimeframe(t.id)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                      active ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'text-gray-300 hover:bg-white/10'
+                      active ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white' : 'text-gray-300 hover:bg-white/10'
                     }`}
                   >
                     {t.name}
@@ -172,12 +161,12 @@ const LeaderboardsPage = () => {
               <div className="text-5xl mb-3">{p.avatar}</div>
               <div className="text-white font-bold text-xl">{p.name}</div>
               <div className="text-gray-300 text-sm">{p.country}</div>
-              <div className="mt-3 inline-flex items-center gap-2 text-yellow-300">
+              <div className="mt-3 inline-flex items-center gap-2 text-cyan-300">
                 <TrophyIcon className="w-5 h-5" />
                 <span className="font-semibold">{p.score.toLocaleString()}</span>
               </div>
               <div className="mt-2 text-sm text-gray-300 flex justify-center gap-3">
-                <span className="inline-flex items-center gap-1"><FireIcon className="w-4 h-4 text-orange-400" /> {p.streak}d</span>
+                <span className="inline-flex items-center gap-1"><FireIcon className="w-4 h-4 text-amber-400" /> {p.streak}d</span>
                 {changeBadge(p.change)}
               </div>
             </motion.div>

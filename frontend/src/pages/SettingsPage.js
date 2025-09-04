@@ -35,7 +35,7 @@ const SettingsPage = () => {
             </div>
             <label className="inline-flex items-center cursor-pointer">
               <input type="checkbox" defaultChecked className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-purple-600 relative">
+              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-600 relative">
                 <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-5" />
               </div>
             </label>

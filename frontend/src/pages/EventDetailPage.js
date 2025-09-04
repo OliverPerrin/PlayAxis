@@ -71,7 +71,7 @@ const EventDetailPage = () => {
   if (error || !event) {
     return (
       <div className="p-6">
-        <button onClick={() => navigate(-1)} className="text-purple-300 hover:text-purple-200 inline-flex items-center gap-2 mb-4">
+        <button onClick={() => navigate(-1)} className="text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-2 mb-4">
           <ArrowLeftIcon className="w-5 h-5" /> Back
         </button>
         <div className="text-red-300">Event not found.</div>
@@ -81,7 +81,7 @@ const EventDetailPage = () => {
 
   return (
     <div className="p-6">
-      <button onClick={() => navigate(-1)} className="text-purple-300 hover:text-purple-200 inline-flex items-center gap-2 mb-6">
+      <button onClick={() => navigate(-1)} className="text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-2 mb-6">
         <ArrowLeftIcon className="w-5 h-5" /> Back
       </button>
 
@@ -125,8 +125,8 @@ const EventDetailPage = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span>Rating</span>
-                <div className="flex items-center gap-1 text-yellow-400">
-                  <StarIcon className="w-4 h-4 fill-current" />
+                <div className="flex items-center gap-1 text-cyan-300">
+                  <StarIcon className="w-4 h-4" />
                   <span className="text-white">{event.rating}</span>
                 </div>
               </div>
@@ -136,7 +136,7 @@ const EventDetailPage = () => {
               </div>
             </div>
 
-            <button className="w-full mt-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg">
+            <button className="w-full mt-4 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg">
               {event.maxParticipants && event.participants >= event.maxParticipants ? 'Join Waitlist' : 'Get Ticket'}
             </button>
           </div>

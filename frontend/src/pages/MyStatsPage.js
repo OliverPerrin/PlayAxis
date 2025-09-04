@@ -8,12 +8,12 @@ const MyStatsPage = () => {
   const [isTracking, setIsTracking] = useState(false);
 
   const sports = [
-    { id: 'running', name: 'Running', icon: '🏃‍♂️', color: 'from-blue-500 to-cyan-500' },
-    { id: 'cycling', name: 'Cycling', icon: '🚴‍♂️', color: 'from-green-500 to-emerald-500' },
-    { id: 'swimming', name: 'Swimming', icon: '🏊‍♂️', color: 'from-purple-500 to-pink-500' },
-    { id: 'tennis', name: 'Tennis', icon: '🎾', color: 'from-yellow-500 to-orange-500' },
-    { id: 'basketball', name: 'Basketball', icon: '🏀', color: 'from-orange-500 to-red-500' },
-    { id: 'soccer', name: 'Soccer', icon: '⚽', color: 'from-indigo-500 to-purple-500' }
+    { id: 'running', name: 'Running', icon: '🏃‍♂️', color: 'from-cyan-500 to-emerald-500' },
+    { id: 'cycling', name: 'Cycling', icon: '🚴‍♂️', color: 'from-emerald-500 to-teal-500' },
+    { id: 'swimming', name: 'Swimming', icon: '🏊‍♂️', color: 'from-blue-500 to-cyan-500' },
+    { id: 'tennis', name: 'Tennis', icon: '🎾', color: 'from-lime-500 to-emerald-500' },
+    { id: 'basketball', name: 'Basketball', icon: '🏀', color: 'from-amber-500 to-yellow-500' },
+    { id: 'soccer', name: 'Soccer', icon: '⚽', color: 'from-indigo-500 to-blue-500' }
   ];
 
   const periods = [
@@ -45,9 +45,9 @@ const MyStatsPage = () => {
           <div className="flex items-center gap-3 mt-4 lg:mt-0">
             <button className="flex items-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl"><PlusIcon className="w-5 h-5" /> Quick Log</button>
             {!isTracking ? (
-              <button onClick={() => setIsTracking(true)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold"><PlayIcon className="w-5 h-5" /> Start Workout</button>
+              <button onClick={() => setIsTracking(true)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl font-semibold"><PlayIcon className="w-5 h-5" /> Start Workout</button>
             ) : (
-              <button onClick={() => setIsTracking(false)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-xl font-semibold"><StopIcon className="w-5 h-5" /> Stop Workout</button>
+              <button onClick={() => setIsTracking(false)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl font-semibold"><StopIcon className="w-5 h-5" /> Stop Workout</button>
             )}
           </div>
         </div>
@@ -64,7 +64,7 @@ const MyStatsPage = () => {
 
           <div className="mt-4 flex gap-2">
             {periods.map((p) => (
-              <button key={p.id} onClick={() => setSelectedPeriod(p.id)} className={`py-2.5 px-4 rounded-xl font-medium ${selectedPeriod === p.id ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
+              <button key={p.id} onClick={() => setSelectedPeriod(p.id)} className={`py-2.5 px-4 rounded-xl font-medium ${selectedPeriod === p.id ? 'bg-gradient-to-r from-cyan-600 to-emerald-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
                 {p.name}
               </button>
             ))}
@@ -75,7 +75,7 @@ const MyStatsPage = () => {
           <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
             <div className="flex items-center justify-between mb-3">
               <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center"><MapPinIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-green-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+{currentStats.trend}%</span></div>
+              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+{currentStats.trend}%</span></div>
             </div>
             <div className="text-3xl font-bold text-white mb-1">{currentStats.distance} km</div>
             <div className="text-gray-300">Total Distance</div>
@@ -83,8 +83,8 @@ const MyStatsPage = () => {
 
           <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
             <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center"><ClockIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-green-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+5.2%</span></div>
+              <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-xl flex items-center justify-center"><ClockIcon className="w-6 h-6 text-white" /></div>
+              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+5.2%</span></div>
             </div>
             <div className="text-3xl font-bold text-white mb-1">{Math.floor((currentStats.time || 0) / 60)}h {(currentStats.time || 0) % 60}m</div>
             <div className="text-gray-300">Active Time</div>
@@ -92,8 +92,8 @@ const MyStatsPage = () => {
 
           <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
             <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center"><FireIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-green-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+18.7%</span></div>
+              <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-xl flex items-center justify-center"><FireIcon className="w-6 h-6 text-white" /></div>
+              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+18.7%</span></div>
             </div>
             <div className="text-3xl font-bold text-white mb-1">{(currentStats.calories || 0).toLocaleString()}</div>
             <div className="text-gray-300">Calories Burned</div>
@@ -101,8 +101,8 @@ const MyStatsPage = () => {
 
           <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
             <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center"><TrophyIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-green-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+12.5%</span></div>
+              <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center"><TrophyIcon className="w-6 h-6 text-white" /></div>
+              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+12.5%</span></div>
             </div>
             <div className="text-3xl font-bold text-white mb-1">{currentStats.sessions || 0}</div>
             <div className="text-gray-300">Training Sessions</div>
@@ -112,13 +112,13 @@ const MyStatsPage = () => {
         <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white">Weekly Progress</h3>
-            <div className="flex items-center gap-2 text-green-400"><BoltIcon className="w-5 h-5" /> <span className="font-semibold">+15% vs last week</span></div>
+            <div className="flex items-center gap-2 text-emerald-300"><BoltIcon className="w-5 h-5" /> <span className="font-semibold">+15% vs last week</span></div>
           </div>
 
           <div className="flex items-end gap-4 h-40">
             {weeklyProgress.map((d, i) => (
               <motion.div key={d.day} initial={{ height: 0 }} animate={{ height: `${d.value}%` }} transition={{ delay: 0.2 + i * 0.05, duration: 0.5 }} className="flex-1 relative group">
-                <div className="bg-gradient-to-t from-purple-600 to-pink-500 rounded-t-lg w-full" style={{ height: `${d.value}%` }} />
+                <div className="bg-gradient-to-t from-cyan-600 to-emerald-500 rounded-t-lg w-full" style={{ height: `${d.value}%` }} />
                 <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-gray-300 text-sm">{d.day}</div>
               </motion.div>
             ))}

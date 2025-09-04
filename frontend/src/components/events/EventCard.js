@@ -20,7 +20,7 @@ const EventCard = ({ event, index }) => {
     >
       {/* Event Image/Header */}
       <div className="relative mb-4">
-        <div className="h-48 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl flex items-center justify-center relative overflow-hidden">
+        <div className="h-48 bg-gradient-to-br from-emerald-500 via-pink-500 to-blue-500 rounded-xl flex items-center justify-center relative overflow-hidden">
           <CalendarIcon className="w-16 h-16 text-white/80" />
           
           {/* Overlay Info */}
@@ -41,7 +41,7 @@ const EventCard = ({ event, index }) => {
 
       {/* Event Details */}
       <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors line-clamp-2">
+        <h3 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors line-clamp-2">
           {event.name?.text || event.title || 'Event Title'}
         </h3>
 
@@ -81,7 +81,7 @@ const EventCard = ({ event, index }) => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
+            className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-emerald-700 hover:to-cyan-700 transition-all duration-300"
           >
             <TicketIcon className="w-4 h-4" />
             <span>Get Tickets</span>

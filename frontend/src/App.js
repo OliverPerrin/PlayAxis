@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { AnimatePresence } from 'framer-motion';
 
-// Layout Components (existing)
+// Layout Components
 import Navbar from './components/layout/Navbar';
 import Sidebar from './components/layout/Sidebar';
 import Footer from './components/layout/Footer';
@@ -49,14 +49,14 @@ function AppContent() {
   }
 
   const backgroundClasses = theme === 'dark'
-    ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900'
-    : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50';
+    ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
+    : 'bg-gradient-to-br from-slate-50 via-cyan-50 to-emerald-50';
 
   return (
     <div className={`min-h-screen transition-all duration-500 ${backgroundClasses}`}>
-      {/* Soft blobs */}
+      {/* Soft blobs updated to greens/blues */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-6 -right-10 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
+        <div className="absolute -top-6 -right-10 w-72 h-72 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
         <div className="absolute -bottom-12 -left-10 w-80 h-80 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-700" />
       </div>
 

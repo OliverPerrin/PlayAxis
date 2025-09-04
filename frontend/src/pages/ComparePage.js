@@ -25,7 +25,7 @@ const ComparePage = () => {
               <input value={left} onChange={e => setLeft(e.target.value)} className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white" />
             </div>
             <div className="flex items-center justify-center">
-              <ArrowsRightLeftIcon className="w-8 h-8 text-purple-300" />
+              <ArrowsRightLeftIcon className="w-8 h-8 text-cyan-300" />
             </div>
             <div>
               <label className="block text-white mb-2">Right</label>
@@ -55,8 +55,8 @@ const ComparePage = () => {
           </div>
 
           <div className="mt-6 flex gap-4">
-            <div className="flex items-center gap-2 text-green-300"><BoltIcon className="w-5 h-5" /> Strength: Speed Workouts</div>
-            <div className="flex items-center gap-2 text-yellow-300"><TrophyIcon className="w-5 h-5" /> Target: New 10K PR</div>
+            <div className="flex items-center gap-2 text-emerald-300"><BoltIcon className="w-5 h-5" /> Strength: Speed Workouts</div>
+            <div className="flex items-center gap-2 text-cyan-300"><TrophyIcon className="w-5 h-5" /> Target: New 10K PR</div>
           </div>
         </div>
       </div>

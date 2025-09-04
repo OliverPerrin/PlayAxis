@@ -45,7 +45,7 @@ const EventsPage = () => {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search events..."
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none"
+              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-cyan-500"
             />
           </div>
         </div>
@@ -78,7 +78,7 @@ const EventsPage = () => {
                   </div>
                 </div>
                 {ev.description && (
-                  <p className="text-gray-300 text-sm mt-2">{ev.description}</p>
+                  <p className="text-gray-300 text-sm mt-2 line-clamp-2">{ev.description}</p>
                 )}
               </div>
             ))}

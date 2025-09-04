@@ -78,7 +78,7 @@ const RecentActivity = () => {
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-white group-hover:text-purple-300 transition-colors">
+                <h4 className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
                   {activity.title}
                 </h4>
                 <p className="text-sm text-gray-400 mt-1">
@@ -98,14 +98,14 @@ const RecentActivity = () => {
       </div>
 
       {/* Activity summary */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20">
+      <div className="mt-6 p-4 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 rounded-xl border border-purple-500/20">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-white">This Week's Summary</p>
             <p className="text-xs text-gray-400 mt-1">4 workouts, 2 achievements</p>
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold text-purple-400">92%</p>
+            <p className="text-lg font-bold text-emerald-400">92%</p>
             <p className="text-xs text-gray-400">Goal completion</p>
           </div>
         </div>
@@ -115,7 +115,7 @@ const RecentActivity = () => {
             initial={{ width: 0 }}
             animate={{ width: '92%' }}
             transition={{ delay: 0.5, duration: 1 }}
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+            className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full"
           />
         </div>
       </div>

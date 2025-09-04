@@ -25,7 +25,6 @@ const DiscoverPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
@@ -39,7 +38,7 @@ const DiscoverPage = () => {
   const [events, setEvents] = useState([]);
   const [error, setError] = useState('');
 
-  // Initialize state from URL
+  // Init from URL
   useEffect(() => {
     const q = searchParams.get('q') || '';
     const cat = searchParams.get('cat') || 'all';
@@ -53,9 +52,9 @@ const DiscoverPage = () => {
     setSortBy(sort === 'popular' ? 'popularity' : sort);
     setViewMode(view === 'list' ? 'list' : 'grid');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // on mount only
+  }, []);
 
-  // Sync URL whenever controls change
+  // Sync URL
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('q', searchTerm);
@@ -63,45 +62,18 @@ const DiscoverPage = () => {
     if (selectedLocation !== 'all') params.set('loc', selectedLocation);
     if (sortBy !== 'date') params.set('sort', sortBy === 'popularity' ? 'popular' : sortBy);
     if (viewMode !== 'grid') params.set('view', viewMode);
-
     const newStr = params.toString();
     const prevStr = searchParams.toString();
-    if (newStr !== prevStr) {
-      setSearchParams(params, { replace: true });
-    }
+    if (newStr !== prevStr) setSearchParams(params, { replace: true });
   }, [searchTerm, selectedCategory, selectedLocation, sortBy, viewMode, searchParams, setSearchParams]);
-
-  const categories = [
-    { id: 'all', name: 'All Events', icon: '🎯' },
-    { id: 'running', name: 'Running', icon: '🏃‍♂️' },
-    { id: 'cycling', name: 'Cycling', icon: '🚴‍♂️' },
-    { id: 'swimming', name: 'Swimming', icon: '🏊‍♂️' },
-    { id: 'tennis', name: 'Tennis', icon: '🎾' },
-    { id: 'basketball', name: 'Basketball', icon: '🏀' },
-    { id: 'soccer', name: 'Soccer', icon: '⚽' },
-    { id: 'fitness', name: 'Fitness', icon: '💪' },
-    { id: 'outdoor', name: 'Outdoor', icon: '🏞️' },
-    { id: 'esports', name: 'Esports', icon: '🎮' },
-  ];
-
-  const locations = [
-    { id: 'all', name: 'All Locations' },
-    { id: 'nearby', name: 'Nearby (use my location)' },
-    { id: 'city', name: 'City Center' },
-    { id: 'virtual', name: 'Virtual' }
-  ];
 
   // Geolocation when nearby
   useEffect(() => {
     let cancelled = false;
     if (selectedLocation === 'nearby' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        pos => {
-          if (!cancelled) setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-        },
-        () => {
-          if (!cancelled) setCoords(null);
-        },
+        pos => { if (!cancelled) setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
+        () => { if (!cancelled) setCoords(null); },
         { timeout: 10000, enableHighAccuracy: false }
       );
     } else {
@@ -174,23 +146,19 @@ const DiscoverPage = () => {
 
   const diffColor = (d) => {
     switch ((d || '').toLowerCase()) {
-      case 'beginner': return 'bg-green-500';
-      case 'intermediate': return 'bg-yellow-500';
-      case 'advanced': return 'bg-red-500';
-      default: return 'bg-blue-500';
+      case 'beginner': return 'bg-emerald-500';
+      case 'intermediate': return 'bg-cyan-500';
+      case 'advanced': return 'bg-blue-500';
+      default: return 'bg-slate-500';
     }
   };
 
   const filtered = useMemo(() => {
     let list = events;
-    if (selectedLocation === 'virtual') {
-      list = list.filter(e => /virtual|online/i.test(e.location || ''));
-    }
-    if (sortBy === 'date') {
-      list = [...list].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    } else if (sortBy === 'popularity' || sortBy === 'popular') {
-      list = [...list].sort((a, b) => (b.participants || 0) - (a.participants || 0));
-    } else if (sortBy === 'price') {
+    if (selectedLocation === 'virtual') list = list.filter(e => /virtual|online/i.test(e.location || ''));
+    if (sortBy === 'date') list = [...list].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    else if (sortBy === 'popularity') list = [...list].sort((a, b) => (b.participants || 0) - (a.participants || 0));
+    else if (sortBy === 'price') {
       list = [...list].sort((a, b) => {
         const va = a.price === 'Free' ? 0 : 9999;
         const vb = b.price === 'Free' ? 0 : 9999;
@@ -208,12 +176,12 @@ const DiscoverPage = () => {
       exit={{ opacity: 0, y: -16 }}
       transition={{ delay: index * 0.05 }}
       whileHover={{ scale: 1.02, y: -4 }}
-      className={`bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/20 hover:border-white/40 transition-all duration-300 group cursor-pointer ${event.featured ? 'ring-2 ring-purple-500/40' : ''}`}
+      className={`bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/20 hover:border-white/40 transition-all duration-300 group cursor-pointer ${event.featured ? 'ring-2 ring-emerald-500/40' : ''}`}
       onClick={() => navigate(`/events/${encodeURIComponent(event.id)}`, { state: { event } })}
     >
       <div className="relative p-6 pb-4">
         {event.featured && (
-          <div className="absolute top-4 left-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1">
+          <div className="absolute top-4 left-4 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1">
             <FireIcon className="w-3 h-3" />
             <span>Featured</span>
           </div>
@@ -224,7 +192,7 @@ const DiscoverPage = () => {
             onClick={(e) => { e.stopPropagation(); toggleFavorite(event.id); }}
             className="p-2 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition-colors"
           >
-            {favorites.has(event.id) ? <HeartSolid className="w-5 h-5 text-red-500" /> : <HeartIcon className="w-5 h-5 text-white" />}
+            {favorites.has(event.id) ? <HeartSolid className="w-5 h-5 text-emerald-400" /> : <HeartIcon className="w-5 h-5 text-white" />}
           </button>
           <button
             onClick={(e) => e.stopPropagation()}
@@ -237,11 +205,11 @@ const DiscoverPage = () => {
         <div className="flex items-center gap-4 mb-3">
           <div className="text-5xl">{event.image}</div>
           <div className="flex-1">
-            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-purple-300 transition-colors">{event.title}</h3>
+            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-cyan-300 transition-colors">{event.title}</h3>
             <p className="text-gray-300 text-sm">{event.organizer}</p>
             <div className="flex items-center gap-2 mt-2">
-              <div className="flex items-center text-yellow-400">
-                <StarIcon className="w-4 h-4 fill-current" />
+              <div className="flex items-center text-cyan-300">
+                <StarIcon className="w-4 h-4" />
                 <span className="text-white text-sm ml-1">{event.rating}</span>
               </div>
               <div className={`w-2 h-2 rounded-full ${diffColor(event.difficulty)}`} />
@@ -286,7 +254,7 @@ const DiscoverPage = () => {
         {event.maxParticipants ? (
           <div className="w-full bg-gray-700 rounded-full h-2">
             <div
-              className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
+              className="bg-gradient-to-r from-emerald-500 to-cyan-500 h-2 rounded-full"
               style={{ width: `${Math.min(100, (event.participants / event.maxParticipants) * 100)}%` }}
             />
           </div>
@@ -294,7 +262,7 @@ const DiscoverPage = () => {
       </div>
 
       <div className="px-6 pb-6">
-        <button className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300">
+        <button className="w-full py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300">
           {event.maxParticipants && event.participants >= event.maxParticipants ? 'Waitlist' : 'Join Event'}
         </button>
       </div>
@@ -318,7 +286,7 @@ const DiscoverPage = () => {
                 placeholder="Search events, sports, or locations..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -334,13 +302,13 @@ const DiscoverPage = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-purple-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                  className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                 >
                   <ViewColumnsIcon className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-purple-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                  className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-emerald-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                 >
                   <ListBulletIcon className="w-5 h-5" />
                 </button>
@@ -363,8 +331,8 @@ const DiscoverPage = () => {
                     onChange={(e) => setSelectedCategory(e.target.value)}
                     className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white"
                   >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id} className="bg-gray-900">{c.name}</option>
+                    {Object.keys(CATEGORY_QUERY).map((id) => (
+                      <option key={id} value={id} className="bg-slate-900">{id[0].toUpperCase() + id.slice(1)}</option>
                     ))}
                   </select>
                 </div>
@@ -376,8 +344,13 @@ const DiscoverPage = () => {
                     onChange={(e) => setSelectedLocation(e.target.value)}
                     className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white"
                   >
-                    {locations.map((l) => (
-                      <option key={l.id} value={l.id} className="bg-gray-900">{l.name}</option>
+                    {[
+                      { id: 'all', name: 'All Locations' },
+                      { id: 'nearby', name: 'Nearby (use my location)' },
+                      { id: 'city', name: 'City Center' },
+                      { id: 'virtual', name: 'Virtual' }
+                    ].map((l) => (
+                      <option key={l.id} value={l.id} className="bg-slate-900">{l.name}</option>
                     ))}
                   </select>
                 </div>
@@ -389,10 +362,10 @@ const DiscoverPage = () => {
                     onChange={(e) => setSortBy(e.target.value)}
                     className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white"
                   >
-                    <option value="date" className="bg-gray-900">Date</option>
-                    <option value="popularity" className="bg-gray-900">Popularity</option>
-                    <option value="price" className="bg-gray-900">Price</option>
-                    <option value="distance" className="bg-gray-900" disabled>Distance (coming soon)</option>
+                    <option value="date" className="bg-slate-900">Date</option>
+                    <option value="popularity" className="bg-slate-900">Popularity</option>
+                    <option value="price" className="bg-slate-900">Price</option>
+                    <option value="distance" className="bg-slate-900" disabled>Distance (coming soon)</option>
                   </select>
                 </div>
               </motion.div>
@@ -400,9 +373,7 @@ const DiscoverPage = () => {
           </AnimatePresence>
         </div>
 
-        {error && (
-          <div className="mb-4 text-yellow-300">{error}</div>
-        )}
+        {error && <div className="mb-4 text-yellow-300">{error}</div>}
 
         {loading ? (
           <div className="text-gray-300">Loading events...</div>
