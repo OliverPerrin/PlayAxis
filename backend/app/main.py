@@ -2,10 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db.database import Base, engine, DB_KIND
-from . import models  # ensure models are imported so tables register
+from .db import base as _models  # registers User, Interest, Event
 from .api.v1.api import api_router
 
-# Create DB tables
+# Create DB tables (safe if tables already exist)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MultiSportApp API", version="1.0.0")
@@ -15,7 +15,7 @@ origins = ["http://localhost:3000"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://.*\.netlify\.app",
+    allow_origin_regex=r"https://.*\\.netlify\\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
