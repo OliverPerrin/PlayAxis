@@ -2,10 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.svg" />
+    <!-- Use the SVG favicon and bump the version to bust caches -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.svg?v=2" type="image/svg+xml" />
+    <!-- Optional PNG fallback for legacy browsers (you can add your own PNG if desired) -->
+    <!-- <link rel="alternate icon" href="%PUBLIC_URL%/favicon-32.png" sizes="32x32" type="image/png" /> -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0B1220" />
     <meta name="description" content="PlayAxis — Discover events, set goals, and move together." />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json?v=2" />
     <title>PlayAxis</title>
   </head>
   <body>

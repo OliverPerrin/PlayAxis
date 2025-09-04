@@ -19,8 +19,10 @@ pydantic-settings
 pydantic_core
 python-dateutil
 python-dotenv
+python-multipart
 pytz
 PyYAML
+PyJWT
 six
 sniffio
 SQLAlchemy

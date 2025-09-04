@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { SparklesIcon, ArrowRightIcon, CheckIcon, UserPlusIcon, MapIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, CheckIcon, UserPlusIcon, MapIcon, BoltIcon } from '@heroicons/react/24/outline';
 
 const FEATURES = [
   { title: 'Find your first event', desc: 'Discover nearby runs, rides, and community activities.', icon: MapIcon },
@@ -18,12 +18,10 @@ const LandingPage = () => {
       {/* Nav */}
       <nav className="p-6 relative z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl flex items-center justify-center">
-              <SparklesIcon className="w-6 h-6 text-white" />
-            </div>
+          <button onClick={() => navigate('/')} className="flex items-center space-x-2">
+            <img src="/logo-mark.svg" alt="PlayAxis" className="w-10 h-10 rounded-xl" />
             <span className="text-2xl font-bold text-white">PlayAxis</span>
-          </div>
+          </button>
           <button onClick={() => navigate('/auth')} className="px-5 py-2.5 bg-white/10 rounded-xl text-white hover:bg-white/15">
             Sign In
           </button>
