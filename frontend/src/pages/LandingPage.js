@@ -3,21 +3,21 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { SparklesIcon, ArrowRightIcon, CheckIcon } from '@heroicons/react/24/outline';
 
+const FEATURES = [
+  { title: 'Discover Events', desc: 'Find sports events and activities near you.' },
+  { title: 'Track Performance', desc: 'Visualize your progress and personal records.' },
+  { title: 'Compare & Compete', desc: 'See how you stack up with friends and pros.' },
+  { title: 'Join Community', desc: 'Clubs, challenges, and training buddies.' },
+];
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const [idx, setIdx] = useState(0);
 
-  const features = [
-    { title: 'Discover Events', desc: 'Find sports events and activities near you.' },
-    { title: 'Track Performance', desc: 'Visualize your progress and personal records.' },
-    { title: 'Compare & Compete', desc: 'See how you stack up with friends and pros.' },
-    { title: 'Join Community', desc: 'Clubs, challenges, and training buddies.' },
-  ];
-
   useEffect(() => {
-    const t = setInterval(() => setIdx(i => (i + 1) % features.length), 2500);
+    const t = setInterval(() => setIdx(i => (i + 1) % FEATURES.length), 2500);
     return () => clearInterval(t);
-  }, []);
+  }, []); // FEATURES.length is constant; safe to leave empty
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
@@ -39,12 +39,7 @@ const LandingPage = () => {
       {/* Hero */}
       <header className="relative z-10 pt-10 pb-20">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <motion.h1
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="text-6xl md:text-7xl font-black text-white"
-          >
+          <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="text-6xl md:text-7xl font-black text-white">
             Elevate Your Athletic Journey
           </motion.h1>
           <p className="mt-6 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
@@ -52,10 +47,7 @@ const LandingPage = () => {
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={() => navigate('/auth')}
-              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-semibold hover:shadow-lg"
-            >
+            <button onClick={() => navigate('/auth')} className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-semibold hover:shadow-lg">
               Get Started
             </button>
             <button className="px-8 py-4 bg-white/10 text-white rounded-2xl hover:bg-white/20">
@@ -84,15 +76,8 @@ const LandingPage = () => {
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-bold text-white text-center mb-10">Built for Every Athlete</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-                className={`rounded-2xl p-6 bg-white/5 border border-white/10 ${idx === i ? 'ring-2 ring-purple-500/40' : ''}`}
-              >
+            {FEATURES.map((f, i) => (
+              <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} className={`rounded-2xl p-6 bg-white/5 border border-white/10 ${idx === i ? 'ring-2 ring-purple-500/40' : ''}`}>
                 <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mb-4">
                   <CheckIcon className="w-6 h-6 text-white" />
                 </div>
@@ -117,7 +102,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="pb-10 text-center text-gray-400">© 2024 PlayAxis. All rights reserved.</footer>
     </div>
   );

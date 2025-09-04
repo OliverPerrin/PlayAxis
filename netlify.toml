@@ -1,21 +1,22 @@
 [build]
   base = "frontend"
-  publish = "build"
+  publish = "frontend/build"
   command = "npm run build"
-  functions = ""
 
 [build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "8"
+  # Stop shipping source maps (also reduces secret scanning surface)
+  GENERATE_SOURCEMAP = "false"
+  # Tell Netlify secret scanner to ignore this env var key
+  SECRETS_SCAN_OMIT_KEYS = "WEATHER_API_URL"
 
+# Single-page app routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# API proxy for production
+# Proxy API to your Koyeb app
 [[redirects]]
   from = "/api/*"
   to = "https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/:splat"
   status = 200
-  force = false

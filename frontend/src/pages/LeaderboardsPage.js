@@ -3,14 +3,61 @@ import { motion } from 'framer-motion';
 import {
   TrophyIcon,
   FireIcon,
-  BoltIcon,
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
-  StarIcon,
   GlobeAltIcon,
   UserIcon,
 } from '@heroicons/react/24/outline';
 import { getLeaderboards } from '../api';
+
+// Accepts any of these payload shapes from the backend:
+// - Array
+// - { data: Array }
+// - { leaderboard: Array }
+// - { results: Array }
+const normalizeLeaderboard = (payload, fallbackCategory) => {
+  const MOCK_DATA = {
+    overall: [
+      { rank: 1, name: 'Alex Runner', avatar: '🏃‍♂️', score: 2450, streak: 45, change: 0, country: '🇺🇸' },
+      { rank: 2, name: 'Sarah Cyclist', avatar: '🚴‍♀️', score: 2380, streak: 32, change: 1, country: '🇨🇦' },
+      { rank: 3, name: 'Mike Swimmer', avatar: '🏊‍♂️', score: 2210, streak: 28, change: -1, country: '🇦🇺' },
+      { rank: 4, name: 'Emma Tennis', avatar: '🎾', score: 2150, streak: 21, change: 2, country: '🇬🇧' },
+      { rank: 5, name: 'David Climber', avatar: '🧗‍♂️', score: 2100, streak: 19, change: -1, country: '🇩🇪' },
+      { rank: 6, name: 'Lisa Yoga', avatar: '🧘‍♀️', score: 2050, streak: 35, change: 0, country: '🇯🇵' },
+      { rank: 7, name: 'Tom Hiker', avatar: '🥾', score: 1980, streak: 14, change: 3, country: '🇫🇷' },
+      { rank: 8, name: 'Anna Dancer', avatar: '💃', score: 1920, streak: 25, change: -2, country: '🇪🇸' },
+    ],
+    running: [
+      { rank: 1, name: 'Alex Runner', avatar: '🏃‍♂️', score: 980, streak: 12, change: 2, country: '🇺🇸' },
+      { rank: 2, name: 'Maya Sprinter', avatar: '🏃‍♀️', score: 955, streak: 9, change: -1, country: '🇮🇳' },
+      { rank: 3, name: 'Leo Pace', avatar: '🏃', score: 932, streak: 8, change: 0, country: '🇧🇷' },
+    ],
+  };
+
+  if (!payload) return MOCK_DATA[fallbackCategory] || [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.leaderboard)) return payload.leaderboard;
+  if (payload.results && Array.isArray(payload.results)) return payload.results;
+  return MOCK_DATA[fallbackCategory] || [];
+};
+
+const changeBadge = (n) => {
+  if (!n) return <span className="text-gray-400">—</span>;
+  if (n > 0) {
+    return (
+      <span className="inline-flex items-center text-green-400">
+        <ArrowTrendingUpIcon className="w-4 h-4 mr-0.5" />+{n}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center text-red-400">
+      <ArrowTrendingDownIcon className="w-4 h-4 mr-0.5" />
+      {n}
+    </span>
+  );
+};
 
 const CATEGORIES = [
   { id: 'overall', name: 'Overall', icon: TrophyIcon },
@@ -27,54 +74,11 @@ const TIMEFRAMES = [
   { id: 'alltime', name: 'All Time' },
 ];
 
-const MOCK_DATA = {
-  overall: [
-    { rank: 1, name: 'Alex Runner', avatar: '🏃‍♂️', score: 2450, streak: 45, change: 0, country: '🇺🇸' },
-    { rank: 2, name: 'Sarah Cyclist', avatar: '🚴‍♀️', score: 2380, streak: 32, change: 1, country: '🇨🇦' },
-    { rank: 3, name: 'Mike Swimmer', avatar: '🏊‍♂️', score: 2210, streak: 28, change: -1, country: '🇦🇺' },
-    { rank: 4, name: 'Emma Tennis', avatar: '🎾', score: 2150, streak: 21, change: 2, country: '🇬🇧' },
-    { rank: 5, name: 'David Climber', avatar: '🧗‍♂️', score: 2100, streak: 19, change: -1, country: '🇩🇪' },
-    { rank: 6, name: 'Lisa Yoga', avatar: '🧘‍♀️', score: 2050, streak: 35, change: 0, country: '🇯🇵' },
-    { rank: 7, name: 'Tom Hiker', avatar: '🥾', score: 1980, streak: 14, change: 3, country: '🇫🇷' },
-    { rank: 8, name: 'Anna Dancer', avatar: '💃', score: 1920, streak: 25, change: -2, country: '🇪🇸' },
-  ],
-  running: [
-    { rank: 1, name: 'Alex Runner', avatar: '🏃‍♂️', score: 980, streak: 12, change: 2, country: '🇺🇸' },
-    { rank: 2, name: 'Maya Sprinter', avatar: '🏃‍♀️', score: 955, streak: 9, change: -1, country: '🇮🇳' },
-    { rank: 3, name: 'Leo Pace', avatar: '🏃', score: 932, streak: 8, change: 0, country: '🇧🇷' },
-  ],
-};
-
-const normalizeLeaderboard = (payload, fallbackCategory) => {
-  // Accepts multiple possible shapes from backend and normalizes to an array
-  if (!payload) return MOCK_DATA[fallbackCategory] || [];
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload.data)) return payload.data;
-  if (Array.isArray(payload.leaderboard)) return payload.leaderboard;
-  if (payload.results && Array.isArray(payload.results)) return payload.results;
-  return MOCK_DATA[fallbackCategory] || [];
-};
-
-const changeBadge = (n) => {
-  if (!n) return <span className="text-gray-400">—</span>;
-  if (n > 0) return (
-    <span className="inline-flex items-center text-green-400">
-      <ArrowTrendingUpIcon className="w-4 h-4 mr-0.5" />+{n}
-    </span>
-  );
-  return (
-    <span className="inline-flex items-center text-red-400">
-      <ArrowTrendingDownIcon className="w-4 h-4 mr-0.5" />
-      {n}
-    </span>
-  );
-};
-
 const LeaderboardsPage = () => {
   const [category, setCategory] = useState('overall');
   const [timeframe, setTimeframe] = useState('monthly');
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState(MOCK_DATA.overall);
+  const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -94,11 +98,10 @@ const LeaderboardsPage = () => {
           change: r.change ?? r.rank_change ?? 0,
           country: r.country || r.flag || '🌍',
         }));
-        setRows(normalized.length ? normalized : MOCK_DATA[category] || []);
+        setRows(normalized);
       } catch (e) {
-        console.warn('Leaderboards fallback:', e?.message);
-        setRows(MOCK_DATA[category] || []);
         setError('Showing demo leaderboard.');
+        setRows(normalizeLeaderboard(null, category));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -154,9 +157,7 @@ const LeaderboardsPage = () => {
           </div>
         </div>
 
-        {error && (
-          <div className="text-yellow-300">{error}</div>
-        )}
+        {error && <div className="text-yellow-300">{error}</div>}
 
         {/* Podium */}
         <div className="grid md:grid-cols-3 gap-4">

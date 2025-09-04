@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
-import { CalendarIcon, MapPinIcon, UserGroupIcon, TicketIcon, ArrowLeftIcon, StarIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, UserGroupIcon, ArrowLeftIcon, StarIcon } from '@heroicons/react/24/outline';
 import { getEventById } from '../api';
 
 const normalizeEvent = (e, fallback) => {
@@ -60,16 +60,14 @@ const EventDetailPage = () => {
         }
       })();
     } else {
-      // Normalize state-provided event for consistency
       setEvent(prev => normalizeEvent(prev, prev));
       setLoading(false);
     }
     return () => { mounted = false; };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) {
-    return <div className="p-6 text-white">Loading event...</div>;
-  }
+  if (loading) return <div className="p-6 text-white">Loading event...</div>;
+
   if (error || !event) {
     return (
       <div className="p-6">

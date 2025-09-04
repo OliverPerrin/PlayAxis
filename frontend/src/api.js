@@ -1,24 +1,17 @@
 // Determine API base URL safely
 const getAPIUrl = () => {
-  // Prefer explicit environment var
   if (process.env.REACT_APP_API_URL) {
     return process.env.REACT_APP_API_URL.replace(/\/$/, '') + '/api/v1';
   }
-
-  // Dev: use CRA proxy (set "proxy" in frontend/package.json e.g. http://localhost:8000)
   if (
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ) {
     return '/api/v1';
   }
-
-  // Netlify deploy — ensure HTTPS to avoid mixed content and redirect issues
   if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
     return 'https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/v1';
   }
-
-  // Default production (Koyeb app)
   const koyebAppName = 'raw-minne-multisportsandevents-7f82c207';
   return `https://${koyebAppName}.koyeb.app/api/v1`;
 };
@@ -73,7 +66,6 @@ export const getEvents = async (query = 'sports', lat = null, lon = null) => {
 };
 
 export const getEventById = async (id) => {
-  // If your backend exposes /events/:id, use that; otherwise return null and let UI fall back to navigation state.
   try {
     const res = await fetchWithTimeout(`${API_URL}/events/${encodeURIComponent(id)}`, {
       method: 'GET',
@@ -86,7 +78,7 @@ export const getEventById = async (id) => {
   }
 };
 
-// Streams (Twitch or similar)
+// Streams
 export const getStreams = async (gameId) => {
   try {
     const res = await fetchWithTimeout(`${API_URL}/streams?game_id=${encodeURIComponent(gameId)}`, {
@@ -100,10 +92,11 @@ export const getStreams = async (gameId) => {
   }
 };
 
-// Weather (Open-Meteo)
+// Weather (Open-Meteo, public)
 const getWeatherApiBase = () => {
-  const env = process.env.WEATHER_API_URL || 'https://api.open-meteo.com/v1';
-  return env.replace(/\/$/, '');
+  // Allow an intentional public override via REACT_APP_*, otherwise default
+  const publicOverride = process.env.REACT_APP_WEATHER_API_URL;
+  return (publicOverride && publicOverride.replace(/\/$/, '')) || 'https://api.open-meteo.com/v1';
 };
 
 export const getWeather = async (lat, lon) => {
@@ -125,13 +118,12 @@ export const getLeaderboards = async (category = 'overall', timeframe = 'monthly
     const res = await fetchWithTimeout(url, { method: 'GET', headers: getAuthHeaders() });
     return await handleResponse(res);
   } catch (error) {
-    // Graceful fallback handled by page
     console.warn('getLeaderboards error:', error.message);
     return null;
   }
 };
 
-// Optional: Auth helpers (use if your AuthContext delegates to api.js)
+// Optional: Auth helpers
 export const login = async (username, password) => {
   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
     method: 'POST',
