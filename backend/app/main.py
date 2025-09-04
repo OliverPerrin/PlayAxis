@@ -2,26 +2,31 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db.database import Base, engine, DB_KIND
-from .db import base as _models  # registers User, Interest, Event
+from .db import base as _models  # register models
 from .api.v1.api import api_router
 
-# Create DB tables (safe if tables already exist)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MultiSportApp API", version="1.0.0")
 
-# CORS for local dev and Netlify
-origins = ["http://localhost:3000"]
+# Permissive CORS to unblock preflights
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"https://.*\\.netlify\\.app",
-    allow_credentials=True,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    # Allow common hosted frontends (regex)
+    allow_origin_regex=r"https?://([a-z0-9-]+\.)*(netlify\.app|vercel\.app|koyeb\.app)$",
+    allow_credentials=True,           # okay with regex (not "*" wildcard)
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
-# Mount API v1
 app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/api/v1/healthz")
