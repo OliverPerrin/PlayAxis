@@ -13,7 +13,6 @@ httpx
 idna
 Mako
 MarkupSafe
-psycopg2-binary>=2.9
 pydantic
 pydantic-settings
 pydantic_core
@@ -35,6 +34,7 @@ watchfiles
 websockets
 python-jose[cryptography]
 passlib[bcrypt]
+psycopg[binary]==3.2.1
 passlib
 jose
 bcrypt
