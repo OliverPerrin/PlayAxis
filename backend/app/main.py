@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from .database import Base, engine
-from .api.v1 import auth as auth_router
+# Import the router directly from the module (avoids package attribute lookup)
+from .api.v1.auth import router as auth_router
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -22,7 +24,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router.router, prefix="/api/v1")
+# Mount API v1 routers
+app.include_router(auth_router, prefix="/api/v1")
 
 @app.get("/api/v1/healthz")
 def health():
