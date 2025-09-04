@@ -1,4 +1,2 @@
-# Ensure submodules can be imported as `from app.api.v1 import auth`
-from . import auth
-
-__all__ = ["auth"]
+# Intentionally empty to avoid circular imports.
+# Do not import submodules here.

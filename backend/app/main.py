@@ -2,8 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
-# Import the router directly from the module (avoids package attribute lookup)
-from .api.v1.auth import router as auth_router
+# Import the router directly from the module (no package-level indirection)
+from .api.v1.Auth import router as auth_router
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
