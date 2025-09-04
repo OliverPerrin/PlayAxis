@@ -16,16 +16,11 @@ const links = [
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   return (
     <>
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/50 transition-opacity ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setSidebarOpen(false)}
-      />
-      {/* Panel */}
+      <div className={`fixed inset-0 z-40 bg-black/50 transition-opacity ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)} />
       <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-slate-950 border-r border-white/10 transform transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="inline-flex items-center gap-2">
-            <span className="inline-block w-8 h-8 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500" />
+            <img src="/logo-mark.svg" alt="PlayAxis" className="w-8 h-8 rounded-md" />
             <span className="text-white font-bold">PlayAxis</span>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg bg-white/10 hover:bg-white/15 text-white">

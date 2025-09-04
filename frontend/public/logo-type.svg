@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="640" height="160" viewBox="0 0 640 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PlayAxis wordmark">
+  <title>PlayAxis</title>
+  <defs>
+    <linearGradient id="paGrad" x1="0" y1="160" x2="640" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark (scaled) -->
+  <g transform="translate(8,8) scale(0.55)">
+    <rect x="16" y="16" width="224" height="224" rx="40" fill="#0B1220"/>
+    <path d="M64 176 L128 64 L192 176" stroke="url(#paGrad)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M96 140 H160" stroke="#E2E8F0" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="156" cy="112" r="7" fill="#E2E8F0"/>
+    <path d="M151 122 L168 140" stroke="#93C5FD" stroke-width="6" stroke-linecap="round"/>
+    <path d="M140 150 L188 162" stroke="#34D399" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark (system font, clean) -->
+  <g transform="translate(180,34)">
+    <text x="0" y="76"
+      font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"
+      font-weight="800"
+      font-size="72"
+      fill="white"
+      letter-spacing="0.5">
+      Play<tspan fill="url(#paGrad)">Axis</tspan>
+    </text>
+  </g>
+</svg>

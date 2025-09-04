@@ -63,8 +63,9 @@ const AuthPage = () => {
         setIsLogin(true);
       }
     } catch (err) {
-      setError(err.message || 'Authentication error');
-      notify(err.message || 'Authentication failed', 'error');
+      const msg = err?.message || 'Authentication failed';
+      setError(msg);
+      notify(msg, 'error', 5000);
     } finally {
       setLoading(false);
     }
@@ -79,9 +80,7 @@ const AuthPage = () => {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center">
-              <SparklesIcon className="w-7 h-7 text-white" />
-            </div>
+            <img src="/logo-mark.svg" alt="PlayAxis" className="w-12 h-12 rounded-2xl" />
             <span className="text-3xl font-bold text-white">PlayAxis</span>
           </div>
           <p className="text-gray-300">{isLogin ? 'Welcome back' : 'Create your account'}</p>
@@ -105,7 +104,7 @@ const AuthPage = () => {
           <form onSubmit={onSubmit} className="space-y-6">
             <div className="relative">
               <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input type="text" name="username" placeholder="Username" value={formData.username} onChange={handleChange} required className="w-full pl-10 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:border-cyan-500" />
+              <input type="text" name="username" placeholder="Username or email" value={formData.username} onChange={handleChange} required className="w-full pl-10 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:border-cyan-500" />
             </div>
 
             {!isLogin && (

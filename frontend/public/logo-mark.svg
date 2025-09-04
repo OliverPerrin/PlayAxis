@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PlayAxis mark">
+  <title>PlayAxis</title>
+  <defs>
+    <linearGradient id="paGrad" x1="40" y1="216" x2="216" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dark tile (looks good on light backgrounds too) -->
+  <rect x="16" y="16" width="224" height="224" rx="40" fill="#0B1220"/>
+
+  <!-- Minimal mountain A -->
+  <path d="M64 176 L128 64 L192 176" stroke="url(#paGrad)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Ridge bar of the A -->
+  <path d="M96 140 H160" stroke="#E2E8F0" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Skier: head (dot) and simple body leaning down the slope -->
+  <circle cx="156" cy="112" r="7" fill="#E2E8F0"/>
+  <path d="M151 122 L168 140" stroke="#93C5FD" stroke-width="6" stroke-linecap="round"/>
+  <!-- Ski -->
+  <path d="M140 150 L188 162" stroke="#34D399" stroke-width="6" stroke-linecap="round"/>
+</svg>
