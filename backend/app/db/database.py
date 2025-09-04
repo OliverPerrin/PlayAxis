@@ -2,15 +2,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
+# Read URL from env (defaults to SQLite for easy boot)
 RAW_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
 
 # Normalize Heroku-style scheme: postgres:// -> postgresql://
 if RAW_URL.startswith("postgres://"):
     RAW_URL = RAW_URL.replace("postgres://", "postgresql://", 1)
 
-# SQLite needs special connect args
+# SQLite needs this connect arg, others do not
 connect_args = {"check_same_thread": False} if RAW_URL.startswith("sqlite") else {}
 
 engine = create_engine(RAW_URL, echo=False, future=True, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 Base = declarative_base()
+
+# Expose DB kind for /healthz reporting (optional but used by main.py)
+DB_KIND = "postgresql" if RAW_URL.startswith("postgresql") else "sqlite"

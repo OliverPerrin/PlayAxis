@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db.database import Base, engine, DB_KIND
-from . import models  # Ensure models are imported so tables are registered
+from . import models  # ensure models are imported so tables register
 from .api.v1.api import api_router
 
 # Create DB tables
