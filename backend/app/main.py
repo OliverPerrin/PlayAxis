@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import Base, engine
+from .db.database import Base, engine, DB_KIND
+from . import models  # Ensure models are imported so tables are registered
 from .api.v1.api import api_router
 
-# Initialize DB
+# Create DB tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MultiSportApp API", version="1.0.0")
@@ -25,4 +26,4 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/api/v1/healthz")
 def health():
-    return {"ok": True}
+    return {"ok": True, "db": DB_KIND}

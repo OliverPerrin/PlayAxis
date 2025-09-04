@@ -114,28 +114,36 @@ export const login = async (username, password) => {
 };
 
 export const register = async (username, email, password) => {
-  const payloads = [
-    { username, email, password },
-    { name: username, email, password },
-  ];
-  const paths = [`${API_URL}/auth/register`, `${API_URL}/register`, `${API_URL}/users`];
-
-  for (const body of payloads) {
-    for (const path of paths) {
-      try {
-        const res = await fetchWithTimeout(path, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const data = await handleResponse(res);
-        if (data) return data;
-      } catch (e) {
-        // try next
-      }
+  const primary = `${API_URL}/auth/register`;
+  const fallbacks = [`${API_URL}/register`, `${API_URL}/users`];
+  let lastErr = null;
+  // Try primary first
+  try {
+    const res = await fetchWithTimeout(primary, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ username, email, password }),
+    });
+    const data = await handleResponse(res);
+    if (data) return data;
+  } catch (e) {
+    lastErr = e;
+  }
+  // Optional fallbacks
+  for (const path of fallbacks) {
+    try {
+      const res = await fetchWithTimeout(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ username, email, password }),
+      });
+      const data = await handleResponse(res);
+      if (data) return data;
+    } catch (e) {
+      lastErr = e;
     }
   }
-  throw new Error('Unable to create account right now.');
+  throw lastErr || new Error('Unable to create account right now.');
 };
 
 export const getMe = async () => {
