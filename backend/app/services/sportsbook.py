@@ -1,6 +1,6 @@
 import httpx
-from app.core.config import settings
 import logging
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +19,9 @@ SPORT_MAP = {
 
 async def get_sportsbook_events(sport: str):
     try:
-        api_key = getattr(settings, "X_RAPIDAPI_KEY", None)
+        api_key = settings.X_RapidAPI_KEY
         if not api_key:
-            logger.warning("Sportsbook: missing X_RAPIDAPI_KEY")
+            logger.warning("Sportsbook: missing X_RapidAPI_KEY")
             return []
 
         headers = {
@@ -31,16 +31,15 @@ async def get_sportsbook_events(sport: str):
         sport_param = SPORT_MAP.get(sport.lower(), sport)
         params = {"sport": sport_param}
 
+        # Keep the endpoint explicit (safer if base URL changes)
+        url = "https://sportsbook-api.p.rapidapi.com/v1/scores"
         async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.get("https://sportsbook-api.p.rapidapi.com/v1/scores",
-                                 headers=headers, params=params)
+            r = await client.get(url, headers=headers, params=params)
             if r.status_code != 200:
                 logger.error(f"Sportsbook {r.status_code} sport={sport_param} body={r.text[:300]}")
                 return []
             data = r.json()
-            if isinstance(data, dict):
-                return data.get("data", []) or []
-            return []
+            return data.get("data", []) if isinstance(data, dict) else []
     except Exception as e:
         logger.error(f"Sportsbook exception: {e}")
         return []

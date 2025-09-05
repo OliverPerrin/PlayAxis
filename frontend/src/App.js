@@ -77,6 +77,11 @@ function AppContent() {
             <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
 
             {/* Protected */}
+
+            <Route path="/" element={<HomePage />} />
+            <Route path="/map" element={<EventsMapPage />} />
+            <Route path="/discover" element={<DiscoverPage />} />
+            <Route path="/events" element={<EventsPage />} />
             <Route path="/" element={user ? <HomePage /> : <Navigate to="/landing" replace />} />
             <Route path="/discover" element={user ? <DiscoverPage /> : <Navigate to="/landing" replace />} />
             <Route path="/events" element={user ? <EventsPage /> : <Navigate to="/landing" replace />} />
@@ -87,7 +92,6 @@ function AppContent() {
             <Route path="/community" element={user ? <CommunityPage /> : <Navigate to="/landing" replace />} />
             <Route path="/profile" element={user ? <ProfilePage /> : <Navigate to="/landing" replace />} />
             <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/map" element={<EventsMapPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
