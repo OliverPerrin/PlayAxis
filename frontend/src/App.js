@@ -64,8 +64,16 @@ function AppContent() {
 
       {user && (
         <>
-          <Navbar setSidebarOpen={setSidebarOpen} theme={theme} setTheme={setTheme} />
-          <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+          <Navbar
+            setSidebarOpen={setSidebarOpen}
+            theme={theme}
+            setTheme={setTheme}
+          />
+          <Sidebar
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            theme={theme}
+          />
         </>
       )}
 
@@ -77,7 +85,6 @@ function AppContent() {
             <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
 
             {/* Protected */}
-
             <Route path="/" element={<HomePage />} />
             <Route path="/map" element={<EventsMapPage />} />
             <Route path="/discover" element={<DiscoverPage />} />
