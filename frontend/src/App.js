@@ -27,19 +27,19 @@ import NotFoundPage from './pages/NotFoundPage';
 
 // Context
 import { ThemeProvider, ThemeContext } from './contexts/ThemeContext';
+import { UIProvider, UIContext } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
 function AppContent() {
   const { user, loading } = useAuth();
   const { theme } = useContext(ThemeContext);
+  const { sidebarCollapsed } = useContext(UIContext);
   const isDark = theme === 'dark';
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [firstLoad, setFirstLoad] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Always show landing page first once per tab session (previous behavior)
   useEffect(() => {
     if (!loading && firstLoad) {
       const alreadyVisited = sessionStorage.getItem('visitedOnce');
@@ -52,17 +52,21 @@ function AppContent() {
     }
   }, [loading, firstLoad, navigate, location.pathname]);
 
-  if (loading || firstLoad) {
-    return <LoadingScreen />;
-  }
+  if (loading || firstLoad) return <LoadingScreen />;
 
   const backgroundClasses = isDark
     ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
     : 'bg-gradient-to-br from-white via-slate-50 to-emerald-50';
 
+  // Adjust left padding when collapsed on large screens
+  const mainLeftPad = user
+    ? sidebarCollapsed
+      ? 'lg:pl-20'
+      : 'lg:pl-64'
+    : '';
+
   return (
     <div className={`min-h-screen transition-colors duration-500 ${backgroundClasses}`}>
-      {/* Decorative blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         {isDark ? (
           <>
@@ -79,22 +83,18 @@ function AppContent() {
 
       {user && (
         <>
-          <Navbar setSidebarOpen={setSidebarOpen} />
-            <Sidebar
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-            />
+          <Navbar />
+          <Sidebar />
         </>
       )}
 
-      <main className={user ? "lg:pl-64 pt-16 relative z-10" : "relative z-10"}>
+      <main className={`${mainLeftPad} pt-16 relative z-10`}>
         <AnimatePresence mode="wait">
           <Routes>
             {/* Public */}
             <Route path="/landing" element={<LandingPage />} />
             <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
 
-            {/* Protected / Restricted */}
             {user ? (
               <>
                 <Route path="/" element={<HomePage />} />
@@ -127,7 +127,6 @@ function AppContent() {
               </>
             )}
 
-            {/* 404 */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AnimatePresence>
@@ -143,9 +142,11 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <NotificationProvider>
-          <Router>
-            <AppContent />
-          </Router>
+          <UIProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </UIProvider>
         </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>

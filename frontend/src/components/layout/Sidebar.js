@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useContext } from 'react';
 import {
   XMarkIcon,
   HomeIcon,
@@ -10,12 +10,11 @@ import {
   AdjustmentsHorizontalIcon,
   UsersIcon,
   Cog6ToothIcon,
-  UserCircleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../../contexts/ThemeContext';
+import { UIContext } from '../../contexts/UIContext';
 
 const navItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
@@ -31,10 +30,10 @@ const navItems = [
   { to: '/profile', label: 'Profile', icon: UserCircleIcon },
 ];
 
-const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
+const Sidebar = () => {
   const { theme } = useContext(ThemeContext);
+  const { sidebarOpen, setSidebarOpen, sidebarCollapsed } = useContext(UIContext);
   const isDark = theme === 'dark';
-  const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
 
   const surface = isDark
@@ -49,7 +48,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     ? 'text-slate-300 hover:text-white hover:bg-white/5'
     : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100';
 
-  const widthClass = collapsed ? 'w-20' : 'w-64';
+  const widthClass = sidebarCollapsed ? 'w-20' : 'w-64';
 
   return (
     <>
@@ -58,10 +57,10 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className={`fixed z-50 top-0 left-0 h-full ${widthClass} flex flex-col border-r backdrop-blur transition-all duration-300
+        className={`fixed z-40 top-0 left-0 h-full ${widthClass} flex flex-col border-r backdrop-blur transition-all duration-300
           ${surface}
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 lg:z-30`}
+          lg:translate-x-0`}
       >
         <div className="flex items-center justify-between px-3 h-16 border-b border-white/10 dark:border-slate-800">
           <button
@@ -69,19 +68,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
             className="flex items-center gap-2"
           >
             <img src="/logo-mark.svg" alt="PlayAxis" className="w-8 h-8 rounded" />
-            {!collapsed && (
+            {!sidebarCollapsed && (
               <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 PlayAxis
               </span>
             )}
-          </button>
-          <button
-            onClick={() => setCollapsed(c => !c)}
-            className={`hidden lg:inline-flex p-2 rounded-md text-xs transition
-              ${isDark ? 'text-slate-300 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-200'}`}
-            aria-label="Toggle collapse"
-          >
-            {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
           </button>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -97,11 +88,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
             <NavLink
               key={to}
               to={to}
-              title={collapsed ? label : undefined}
+              title={sidebarCollapsed ? label : undefined}
               className={({ isActive }) =>
                 `group flex items-center gap-3 px-3 py-2 rounded-md border text-sm font-medium transition
                  ${isActive ? activeClasses : baseLink + ' border-transparent'}
-                 ${collapsed ? 'justify-center' : ''}`
+                 ${sidebarCollapsed ? 'justify-center' : ''}`
               }
               onClick={() => setSidebarOpen(false)}
               end={to === '/'}
@@ -109,7 +100,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
               <Icon className="w-5 h-5 shrink-0" />
               <span
                 className={`whitespace-nowrap transition-opacity duration-200
-                  ${collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'}`}
+                  ${sidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'}`}
               >
                 {label}
               </span>

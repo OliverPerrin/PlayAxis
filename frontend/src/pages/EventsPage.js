@@ -1,12 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { getEvents } from '../api';
 import { useNavigate } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import Panel from '../components/common/Panel';
+import { ThemeContext } from '../contexts/ThemeContext';
 
 const EventsPage = () => {
+  const { theme } = useContext(ThemeContext);
+  const isDark = theme === 'dark';
+  const [events, setEvents] = useState([]);
   const navigate = useNavigate();
   const [q, setQ] = useState('sports events');
-  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
