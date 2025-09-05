@@ -22,6 +22,7 @@ import CommunityPage from './pages/CommunityPage';
 import SettingsPage from './pages/SettingsPage';
 import AuthPage from './pages/AuthPage';
 import LogWorkoutPage from './pages/LogWorkoutPage';
+import EventsMapPage from './pages/EventsMapPage.jsx';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Context
@@ -38,12 +39,11 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Simulate previous behavior: always show landing first after loading once per tab
+  // Always show landing page first once per tab session (previous behavior)
   useEffect(() => {
     if (!loading && firstLoad) {
       const alreadyVisited = sessionStorage.getItem('visitedOnce');
       if (!alreadyVisited && location.pathname !== '/landing') {
-        // Mark visited to avoid loops
         sessionStorage.setItem('visitedOnce', '1');
         navigate('/landing', { replace: true });
       }
@@ -62,6 +62,7 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${backgroundClasses}`}>
+      {/* Decorative blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         {isDark ? (
           <>
@@ -79,10 +80,10 @@ function AppContent() {
       {user && (
         <>
           <Navbar setSidebarOpen={setSidebarOpen} />
-          <Sidebar
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-          />
+            <Sidebar
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
+            />
         </>
       )}
 
@@ -93,7 +94,7 @@ function AppContent() {
             <Route path="/landing" element={<LandingPage />} />
             <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
 
-            {/* Protected */}
+            {/* Protected / Restricted */}
             {user ? (
               <>
                 <Route path="/" element={<HomePage />} />
@@ -111,10 +112,10 @@ function AppContent() {
               </>
             ) : (
               <>
-                {/* If not logged in, redirect protected paths to landing */}
                 <Route path="/" element={<Navigate to="/landing" replace />} />
                 <Route path="/map" element={<Navigate to="/landing" replace />} />
                 <Route path="/events" element={<Navigate to="/landing" replace />} />
+                <Route path="/events/:id" element={<Navigate to="/landing" replace />} />
                 <Route path="/discover" element={<Navigate to="/landing" replace />} />
                 <Route path="/leaderboards" element={<Navigate to="/landing" replace />} />
                 <Route path="/mystats" element={<Navigate to="/landing" replace />} />
