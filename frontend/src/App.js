@@ -32,7 +32,6 @@ import { NotificationProvider } from './contexts/NotificationContext';
 // Hooks
 import { useLocalStorage } from './hooks/UseLocalStorage';
 
-
 function AppContent() {
   const { user, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -50,16 +49,26 @@ function AppContent() {
     return <LoadingScreen />;
   }
 
-  const backgroundClasses = theme === 'dark'
+  const isDark = theme === 'dark';
+  const backgroundClasses = isDark
     ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
-    : 'bg-gradient-to-br from-slate-50 via-cyan-50 to-emerald-50';
+    : 'bg-gradient-to-br from-white via-slate-50 to-emerald-50';
 
   return (
-    <div className={`min-h-screen transition-all duration-500 ${backgroundClasses}`}>
-      {/* Soft blobs updated to greens/blues */}
+    <div className={`min-h-screen transition-colors duration-500 ${backgroundClasses}`}>
+      {/* Decorative blobs (dimmer or removed in light mode) */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-6 -right-10 w-72 h-72 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
-        <div className="absolute -bottom-12 -left-10 w-80 h-80 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-700" />
+        {isDark ? (
+          <>
+            <div className="absolute -top-6 -right-10 w-72 h-72 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
+            <div className="absolute -bottom-12 -left-10 w-80 h-80 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-700" />
+          </>
+        ) : (
+          <>
+            <div className="absolute -top-8 -right-12 w-72 h-72 bg-emerald-300 rounded-full mix-blend-normal blur-3xl opacity-10" />
+            <div className="absolute -bottom-16 -left-14 w-80 h-80 bg-cyan-300 rounded-full mix-blend-normal blur-3xl opacity-10" />
+          </>
+        )}
       </div>
 
       {user && (
@@ -87,19 +96,17 @@ function AppContent() {
             {/* Protected */}
             <Route path="/" element={<HomePage />} />
             <Route path="/map" element={<EventsMapPage />} />
-            <Route path="/discover" element={<DiscoverPage />} />
             <Route path="/events" element={<EventsPage />} />
-            <Route path="/" element={user ? <HomePage /> : <Navigate to="/landing" replace />} />
-            <Route path="/discover" element={user ? <DiscoverPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/events" element={user ? <EventsPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/events/:id" element={user ? <EventDetailPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/stats" element={user ? <MyStatsPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/compare" element={user ? <ComparePage /> : <Navigate to="/landing" replace />} />
-            <Route path="/leaderboards" element={user ? <LeaderboardsPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/community" element={user ? <CommunityPage /> : <Navigate to="/landing" replace />} />
-            <Route path="/profile" element={user ? <ProfilePage /> : <Navigate to="/landing" replace />} />
-            <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/landing" replace />} />
+            <Route path="/events/:id" element={<EventDetailPage />} />
+            <Route path="/discover" element={<DiscoverPage />} />
+            <Route path="/leaderboards" element={<LeaderboardsPage />} />
+            <Route path="/mystats" element={<MyStatsPage />} />
+            <Route path="/compare" element={<ComparePage />} />
+            <Route path="/community" element={<CommunityPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
 
+            {/* 404 */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AnimatePresence>
@@ -110,7 +117,7 @@ function AppContent() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -123,5 +130,3 @@ function App() {
     </ThemeProvider>
   );
 }
-
-export default App;

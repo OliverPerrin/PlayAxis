@@ -24,16 +24,14 @@ const Navbar = ({ setSidebarOpen, theme = 'dark', setTheme = () => {} }) => {
   return (
     <header className={`fixed top-0 inset-x-0 z-40 backdrop-blur border-b ${baseSurface}`}>
       <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-        {/* Sidebar toggle (mobile) */}
         <button
           onClick={() => setSidebarOpen?.(true)}
-            className={`p-2 rounded-lg ${buttonBase}`}
-            aria-label="Open sidebar"
+          className={`p-2 rounded-lg ${buttonBase} lg:hidden`}
+          aria-label="Open sidebar"
         >
           <Bars3Icon className="w-6 h-6" />
         </button>
 
-        {/* Brand + inline nav buttons */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/')}
@@ -50,14 +48,13 @@ const Navbar = ({ setSidebarOpen, theme = 'dark', setTheme = () => {} }) => {
 
           <button
             onClick={() => navigate('/map')}
-            className={`inline-flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition ${buttonBase}`}
+            className={`hidden md:inline-flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition ${buttonBase}`}
           >
             <MapIcon className="w-4 h-4" />
             Map
           </button>
         </div>
 
-        {/* Theme toggle */}
         <button
           onClick={() => setTheme?.(isDark ? 'light' : 'dark')}
           className={`p-2 rounded-lg ${buttonBase}`}
