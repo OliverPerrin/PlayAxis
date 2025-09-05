@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { AnimatePresence } from 'framer-motion';
-import EventsMapPage from './pages/EventsMapPage';
+import EventsMapPage from './pages/EventsMapPage.jsx';
 
 // Layout Components
 import Navbar from './components/layout/Navbar';
