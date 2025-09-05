@@ -1,51 +1,41 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { PencilSquareIcon, ArrowRightOnRectangleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 
 const ProfilePage = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+    } catch (e) {
+      console.error('Logout error', e);
+    } finally {
+      // Clear visited flag so next load shows landing again
+      sessionStorage.removeItem('visitedOnce');
+      navigate('/landing', { replace: true });
+    }
+  };
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-white">Profile</h1>
-            <p className="text-gray-300">Manage your account and preferences</p>
+    <div className="max-w-3xl mx-auto p-6 space-y-6">
+      <div className="rounded-2xl p-6 border dark:bg-white/5 dark:border-white/10 bg-white border-slate-200 shadow-sm">
+        <h1 className="text-2xl font-bold dark:text-white text-slate-900 mb-4">Profile</h1>
+        <div className="space-y-2 text-sm">
+          <div className="dark:text-slate-300 text-slate-700">
+            <strong>Username:</strong> {user?.username}
           </div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white inline-flex items-center gap-2"
-          >
-            <ArrowRightOnRectangleIcon className="w-5 h-5" />
-            Sign out
-          </button>
-        </div>
-
-        <div className="bg-white/10 border border-white/20 rounded-2xl p-6 flex items-center gap-6">
-          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-            <UserCircleIcon className="w-14 h-14 text-white" />
-          </div>
-          <div className="flex-1">
-            <div className="text-white text-xl font-semibold">{user?.username || 'User'}</div>
-            <div className="text-gray-300">{user?.email || 'email@domain.com'}</div>
-          </div>
-          <button className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white inline-flex items-center gap-2">
-            <PencilSquareIcon className="w-5 h-5" />
-            Edit
-          </button>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white/10 border border-white/20 rounded-2xl p-6">
-            <div className="text-white font-semibold mb-2">Preferences</div>
-            <div className="text-gray-300 text-sm">Sport interests, units, notifications</div>
-          </div>
-          <div className="bg-white/10 border border-white/20 rounded-2xl p-6">
-            <div className="text-white font-semibold mb-2">Connected Apps</div>
-            <div className="text-gray-300 text-sm">Connect Strava, Garmin, Twitch</div>
+          <div className="dark:text-slate-300 text-slate-700">
+            <strong>Email:</strong> {user?.email}
           </div>
         </div>
+        <button
+          onClick={handleSignOut}
+            className="mt-6 inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-500"
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );

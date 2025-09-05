@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 
 const SettingsPage = () => {
-  const { theme, setTheme } = useContext(ThemeContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
   return (
@@ -25,14 +25,12 @@ const SettingsPage = () => {
               </div>
             </div>
             <button
-              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              onClick={toggleTheme}
               className="px-4 py-2 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-500"
             >
               Switch to {isDark ? 'Light' : 'Dark'}
             </button>
           </div>
-
-          {/* Add other settings sections here */}
         </div>
       </div>
     </div>

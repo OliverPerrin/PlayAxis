@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   XMarkIcon,
   HomeIcon,
@@ -15,10 +15,12 @@ import {
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { ThemeContext } from '../../contexts/ThemeContext';
 
 const navItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
   { to: '/map', label: 'Map', icon: MapIcon },
+  { to: '/events', label: 'Events', icon: CalendarIcon },
   { to: '/discover', label: 'Discover', icon: GlobeAltIcon },
   { to: '/leaderboards', label: 'Leaderboards', icon: TrophyIcon },
   { to: '/mystats', label: 'My Stats', icon: ChartBarIcon },
@@ -27,15 +29,13 @@ const navItems = [
   { to: '/community', label: 'Community', icon: UsersIcon },
   { to: '/settings', label: 'Settings', icon: Cog6ToothIcon },
   { to: '/profile', label: 'Profile', icon: UserCircleIcon },
-  // Event detail route (/:id) intentionally not shown in nav
 ];
 
-const Sidebar = ({ sidebarOpen, setSidebarOpen, theme = 'dark' }) => {
-  const navigate = useNavigate();
+const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
+  const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
-
-  // Collapsed state for large screens
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   const surface = isDark
     ? 'bg-slate-900/90 border-white/10'
@@ -53,12 +53,10 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, theme = 'dark' }) => {
 
   return (
     <>
-      {/* Mobile overlay */}
       <div
         className={`fixed inset-0 z-40 bg-black/40 transition-opacity lg:hidden ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setSidebarOpen(false)}
       />
-
       <aside
         className={`fixed z-50 top-0 left-0 h-full ${widthClass} flex flex-col border-r backdrop-blur transition-all duration-300
           ${surface}
@@ -69,7 +67,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, theme = 'dark' }) => {
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2"
-            aria-label="Go home"
           >
             <img src="/logo-mark.svg" alt="PlayAxis" className="w-8 h-8 rounded" />
             {!collapsed && (
@@ -78,8 +75,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, theme = 'dark' }) => {
               </span>
             )}
           </button>
-
-            {/* Collapse toggle (desktop) */}
           <button
             onClick={() => setCollapsed(c => !c)}
             className={`hidden lg:inline-flex p-2 rounded-md text-xs transition
@@ -88,8 +83,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, theme = 'dark' }) => {
           >
             {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
           </button>
-
-          {/* Close button (mobile) */}
           <button
             onClick={() => setSidebarOpen(false)}
             className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 lg:hidden"
@@ -111,7 +104,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, theme = 'dark' }) => {
                  ${collapsed ? 'justify-center' : ''}`
               }
               onClick={() => setSidebarOpen(false)}
-              end={to === '/'} /* avoid active highlight on subpaths for home */
+              end={to === '/'}
             >
               <Icon className="w-5 h-5 shrink-0" />
               <span
