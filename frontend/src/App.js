@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { AnimatePresence } from 'framer-motion';
+import EventsMapPage from './pages/EventsMapPage';
 
 // Layout Components
 import Navbar from './components/layout/Navbar';
@@ -30,6 +31,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 
 // Hooks
 import { useLocalStorage } from './hooks/UseLocalStorage';
+
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -85,6 +87,7 @@ function AppContent() {
             <Route path="/community" element={user ? <CommunityPage /> : <Navigate to="/landing" replace />} />
             <Route path="/profile" element={user ? <ProfilePage /> : <Navigate to="/landing" replace />} />
             <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/landing" replace />} />
+            <Route path="/map" element={<EventsMapPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

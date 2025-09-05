@@ -10,7 +10,6 @@ async def read_streams(
     first: int = Query(default=12, ge=1, le=20),
 ):
     try:
-        streams = await get_twitch_streams(game_id=game_id, game_name=game_name, first=first)
-        return streams
+        return await get_twitch_streams(game_id=game_id, game_name=game_name, first=first)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
