@@ -34,23 +34,32 @@ import { NotificationProvider } from './contexts/NotificationContext';
 function AppContent() {
   const { user, loading } = useAuth();
   const { theme } = useContext(ThemeContext);
-  const { sidebarCollapsed } = useContext(UIContext);
+  const { sidebarCollapsed, setSidebarOpen } = useContext(UIContext);
   const isDark = theme === 'dark';
   const [firstLoad, setFirstLoad] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
+  const onLanding = location.pathname === '/landing';
+  const showLayout = user && !onLanding;
+
+  // Initial landing redirect (once per tab)
   useEffect(() => {
     if (!loading && firstLoad) {
       const alreadyVisited = sessionStorage.getItem('visitedOnce');
-      if (!alreadyVisited && location.pathname !== '/landing') {
+      if (!alreadyVisited && !onLanding) {
         sessionStorage.setItem('visitedOnce', '1');
         navigate('/landing', { replace: true });
       }
       const t = setTimeout(() => setFirstLoad(false), 600);
       return () => clearTimeout(t);
     }
-  }, [loading, firstLoad, navigate, location.pathname]);
+  }, [loading, firstLoad, navigate, onLanding]);
+
+  // Ensure sidebar closes when entering landing page
+  useEffect(() => {
+    if (onLanding) setSidebarOpen(false);
+  }, [onLanding, setSidebarOpen]);
 
   if (loading || firstLoad) return <LoadingScreen />;
 
@@ -58,8 +67,8 @@ function AppContent() {
     ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
     : 'bg-gradient-to-br from-white via-slate-50 to-emerald-50';
 
-  // Adjust left padding when collapsed on large screens
-  const mainLeftPad = user
+  // Adjust left padding only when layout is visible
+  const mainLeftPad = showLayout
     ? sidebarCollapsed
       ? 'lg:pl-20'
       : 'lg:pl-64'
@@ -67,6 +76,7 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${backgroundClasses}`}>
+      {/* Decorative blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         {isDark ? (
           <>
@@ -81,7 +91,7 @@ function AppContent() {
         )}
       </div>
 
-      {user && (
+      {showLayout && (
         <>
           <Navbar />
           <Sidebar />
@@ -132,7 +142,7 @@ function AppContent() {
         </AnimatePresence>
       </main>
 
-      {user && <Footer />}
+      {showLayout && <Footer />}
     </div>
   );
 }
