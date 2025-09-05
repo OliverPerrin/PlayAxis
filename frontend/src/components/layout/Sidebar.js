@@ -19,10 +19,10 @@ import { NavLink, useNavigate } from 'react-router-dom';
 const navItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
   { to: '/map', label: 'Map', icon: MapIcon },
-  { to: '/events', label: 'Events', icon: CalendarIcon },
   { to: '/discover', label: 'Discover', icon: GlobeAltIcon },
   { to: '/leaderboards', label: 'Leaderboards', icon: TrophyIcon },
   { to: '/mystats', label: 'My Stats', icon: ChartBarIcon },
+  { to: '/log-workout', label: 'Log Workout', icon: CalendarIcon },
   { to: '/compare', label: 'Compare', icon: AdjustmentsHorizontalIcon },
   { to: '/community', label: 'Community', icon: UsersIcon },
   { to: '/settings', label: 'Settings', icon: Cog6ToothIcon },

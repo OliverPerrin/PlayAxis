@@ -23,6 +23,7 @@ import CommunityPage from './pages/CommunityPage';
 import SettingsPage from './pages/SettingsPage';
 import AuthPage from './pages/AuthPage';
 import NotFoundPage from './pages/NotFoundPage';
+import LogWorkoutPage from './pages/LogWorkoutPage.jsx';
 
 // Context
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -105,6 +106,7 @@ function AppContent() {
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/log-workout" element={<LogWorkoutPage />} />
 
             {/* 404 */}
             <Route path="*" element={<NotFoundPage />} />
