@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, Depends
 from typing import Optional, Dict, Any, List
 from app.services.eventbrite import get_eventbrite_events
 from app.services.sportsbook import get_sportsbook_events
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_optional_user
 from app.models.user import User
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def aggregate_events(
     lat: Optional[float] = Query(default=None),
     lon: Optional[float] = Query(default=None),
     include_sports: bool = Query(default=True),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     eb_payload = await get_eventbrite_events(q, lat, lon, current_user)
     eb_items = [normalize_eventbrite(e) for e in eb_payload.get("events", [])]

@@ -61,6 +61,30 @@ function AppContent() {
     if (onLanding) setSidebarOpen(false);
   }, [onLanding, setSidebarOpen]);
 
+  // Dynamic document title per route
+  useEffect(() => {
+    const path = location.pathname;
+    const titleFor = (p) => {
+      if (p === '/' || p === '/home') return 'Home';
+      if (p.startsWith('/events/')) return 'Event Details';
+      if (p === '/events') return 'Events';
+      if (p === '/discover') return 'Discover';
+      if (p === '/map') return 'Map';
+      if (p === '/leaderboards') return 'Leaderboards';
+      if (p === '/mystats') return 'My Stats';
+      if (p === '/compare') return 'Compare';
+      if (p === '/community') return 'Community';
+      if (p === '/settings') return 'Settings';
+      if (p === '/profile') return 'Profile';
+      if (p === '/log-workout') return 'Log Workout';
+      if (p === '/landing') return 'Welcome';
+      if (p === '/auth') return 'Sign In';
+      return 'PlayAxis';
+    };
+    const page = titleFor(path);
+    document.title = page === 'PlayAxis' ? 'PlayAxis' : `PlayAxis — ${page}`;
+  }, [location.pathname]);
+
   if (loading || firstLoad) return <LoadingScreen />;
 
   const backgroundClasses = isDark

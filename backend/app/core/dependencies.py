@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -30,4 +30,24 @@ def get_current_user(
     user = get_user_by_email(db, email=user_id)
     if user is None:
         raise credentials_exception
+    return user
+
+def get_optional_user(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db)
+) -> User | None:
+    """Return authenticated user if a valid Bearer token is provided; otherwise None.
+    Does not raise 401 in absence of credentials, enabling public endpoints to behave gracefully.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            return None
+    except JWTError:
+        return None
+    user = get_user_by_email(db, email=user_id)
     return user

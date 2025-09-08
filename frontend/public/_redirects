@@ -1,2 +1,2 @@
-/* https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/:splat  200
-/*      /index.html  200
+/* Redirect rules are now managed via netlify.toml. This file is intentionally left without rules.
+	Keeping it as a comment-only file avoids VS Code CSS linter errors while preventing duplicate rules. */
