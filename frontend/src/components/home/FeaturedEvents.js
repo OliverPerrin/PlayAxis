@@ -86,25 +86,25 @@ const FeaturedEvents = () => {
             {/* Event Details */}
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-white truncate group-hover:text-emerald-300 transition-colors">
-                {event.name?.text || event.title || 'Event Title'}
+                {event.title || event.name?.text || 'Event Title'}
               </h4>
               
               <div className="flex items-center space-x-4 mt-2 text-sm text-gray-400">
                 <div className="flex items-center space-x-1">
                   <ClockIcon className="w-4 h-4" />
                   <span>
-                    {event.start?.local ? 
-                      new Date(event.start.local).toLocaleDateString() : 
+                    {event.start ? 
+                      new Date(event.start).toLocaleDateString() : 
                       'Date TBA'
                     }
                   </span>
                 </div>
                 
-                {event.venue && (
+        {event.venue && (
                   <div className="flex items-center space-x-1">
                     <MapPinIcon className="w-4 h-4" />
                     <span className="truncate">
-                      {event.venue.name || 'Online'}
+          {event.venue || 'Online'}
                     </span>
                   </div>
                 )}

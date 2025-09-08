@@ -16,16 +16,16 @@ function Calendar({ selectedInterests }) {
       try {
         const query = selectedInterests.length > 0 ? selectedInterests.join(' OR ') : 'sports';
         const data = await getEvents(query);
-        
+
         // Check if data has events property and it's an array
         if (data && data.events && Array.isArray(data.events)) {
           const formattedEvents = data.events.map(event => ({
-            title: event.name?.text || event.title || 'Untitled Event',
-            start: event.start?.local || event.start_time,
-            end: event.end?.local || event.end_time,
+            title: event.title || event.name?.text || 'Untitled Event',
+            start: event.start || event.start_time || event?.start?.local,
+            end: event.end || event.end_time || event?.end?.local,
             url: event.url,
           })).filter(event => event.start); // Only include events with start time
-          
+
           setEvents(formattedEvents);
         } else {
           // If no events or wrong format, set empty array

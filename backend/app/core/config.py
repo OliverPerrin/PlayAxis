@@ -35,3 +35,9 @@ settings = Settings()
 # Normalize old-style URLs (postgres:// → postgresql://)
 if settings.DATABASE_URL.startswith("postgres://"):
     settings.DATABASE_URL = settings.DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Sanitize Eventbrite base URL if an accidental full path with query was provided
+if settings.EVENTBRITE_API_URL:
+    if "eventbriteapi.com" in settings.EVENTBRITE_API_URL:
+        # Force canonical base
+        settings.EVENTBRITE_API_URL = "https://www.eventbriteapi.com/v3"

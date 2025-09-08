@@ -91,41 +91,27 @@ const DiscoverPage = () => {
       try {
         const qBase = CATEGORY_QUERY[selectedCategory] || 'sports';
         const q = searchTerm ? `${qBase} ${searchTerm}` : qBase;
-        const data = await getEvents(q, coords?.lat || null, coords?.lon || null);
+        const data = await getEvents(q, coords?.lat ?? null, coords?.lon ?? null);
         if (!mounted) return;
 
-        const raw = Array.isArray(data?.events) ? data.events : [];
-        const normalized = raw.map((e, idx) => {
-          const title = e?.title || e?.name?.text || 'Untitled Event';
-          const description = e?.description || e?.description?.text || '';
-          const startLocal = e?.start?.local || e?.start || e?.date || null;
-          const venueName = e?.venue?.name || e?.location || e?.venue || 'Location TBA';
-          const isFree = typeof e?.is_free === 'boolean' ? e.is_free : (e?.price === 'Free');
-          const price = isFree ? 'Free' : (e?.price || e?.ticket_price || 'See site');
-          const participants = e?.participants || e?.attending_count || e?.yes_rsvp_count || 0;
-          const maxParticipants = e?.capacity || e?.maxParticipants || null;
-          const rating = e?.rating || 4 + ((idx % 10) / 10);
+        const list = Array.isArray(data?.events) ? data.events : [];
+        // Decorate with UI-only fields
+        const decorated = list.map((e, idx) => ({
+          ...e,
+          date: e.start ? new Date(e.start).toISOString().slice(0, 10) : null,
+          time: e.start ? new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+          location: e.venue,
+          price: 'See site',
+          participants: 0,
+          maxParticipants: null,
+          difficulty: 'All Levels',
+          rating: Math.round((4.2 + (idx % 10) / 20 + Number.EPSILON) * 10) / 10,
+          image: '🎯',
+          organizer: e.organizer || 'Organizer',
+          featured: idx < 3,
+        }));
 
-          return {
-            id: e?.id || e?.event_id || `${idx}-${title}`,
-            title,
-            description,
-            date: startLocal ? new Date(startLocal).toISOString().slice(0, 10) : null,
-            time: startLocal ? new Date(startLocal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
-            location: venueName,
-            participants,
-            maxParticipants,
-            price,
-            difficulty: e?.difficulty || 'All Levels',
-            rating: Math.round((rating + Number.EPSILON) * 10) / 10,
-            image: '🎯',
-            tags: (e?.tags || []).slice(0, 3),
-            organizer: e?.organizer || e?.organization_id || 'Organizer',
-            featured: idx < 3
-          };
-        });
-
-        setEvents(normalized);
+        setEvents(decorated);
       } catch (err) {
         console.error('Discover getEvents error:', err);
         setError(err.message || 'Failed to load events');

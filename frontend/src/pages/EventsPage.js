@@ -21,14 +21,7 @@ const EventsPage = () => {
         const data = await getEvents(q);
         if (!mounted) return;
         const list = Array.isArray(data?.events) ? data.events : [];
-        const normalized = list.map((e, idx) => ({
-          id: e?.id || `${idx}`,
-          title: e?.title || e?.name?.text || 'Untitled Event',
-          date: e?.start?.local || e?.date || null,
-          location: e?.venue?.name || e?.location || 'Location TBA',
-          description: e?.description?.text || e?.description || '',
-        }));
-        setEvents(normalized);
+        setEvents(list);
       } catch (err) {
         console.error('EventsPage getEvents error:', err);
         setEvents([]);
@@ -60,25 +53,19 @@ const EventsPage = () => {
           <div className="space-y-4">
             {events.map(ev => (
               <div
-                key={ev.id}
-                onClick={() => navigate(`/events/${encodeURIComponent(ev.id)}`, { state: { event: {
-                  id: ev.id,
-                  title: ev.title,
-                  description: ev.description,
-                  start: { local: ev.date },
-                  venue: { name: ev.location },
-                } } })}
+        key={ev.id}
+        onClick={() => navigate(`/events/${encodeURIComponent(ev.id)}`, { state: { event: ev } })}
                 className="bg-white/10 border border-white/20 rounded-xl p-4 hover:bg-white/15 cursor-pointer"
               >
-                <div className="text-white font-semibold text-lg">{ev.title}</div>
+        <div className="text-white font-semibold text-lg">{ev.title}</div>
                 <div className="flex items-center gap-4 text-sm text-gray-300 mt-1">
                   <div className="flex items-center gap-1">
                     <CalendarIcon className="w-4 h-4" />
-                    <span>{ev.date ? new Date(ev.date).toLocaleString() : 'TBA'}</span>
+          <span>{ev.start ? new Date(ev.start).toLocaleString() : 'TBA'}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <MapPinIcon className="w-4 h-4" />
-                    <span>{ev.location}</span>
+          <span>{ev.venue}</span>
                   </div>
                 </div>
                 {ev.description && (

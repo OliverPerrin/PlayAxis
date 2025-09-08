@@ -5,12 +5,13 @@
 [build.environment]
   GENERATE_SOURCEMAP = "false"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
+## IMPORTANT: Place API proxy BEFORE SPA fallback so Netlify forwards API calls to Koyeb
 [[redirects]]
   from = "/api/*"
   to = "https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200

@@ -61,30 +61,65 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
   }
 };
 
+// --- Event helpers ---
+const normalizeEventItem = (e, idx=0) => {
+  if (!e) return null;
+  // Support backend normalized Event schema and raw Eventbrite payloads
+  const title = e.title || e?.name?.text || e?.name || 'Untitled Event';
+  const start = e.start || e?.start_time || e?.start?.local || e?.date || null;
+  const end = e.end || e?.end_time || e?.end?.local || null;
+  const venueName = e.venue || e?.venue?.name || e?.location || 'Location TBA';
+  return {
+    id: String(e.id ?? e.event_id ?? `${idx}-${title}`),
+    source: e.source || 'eventbrite',
+    title,
+    description: e.description?.text || e.description || '',
+    url: e.url || null,
+    start,
+    end,
+    venue: venueName,
+    city: e.city || e?.venue?.address?.city || null,
+    country: e.country || e?.venue?.address?.country || null,
+    latitude: e.latitude ?? e?.venue?.latitude ?? null,
+    longitude: e.longitude ?? e?.venue?.longitude ?? null,
+    image: e.image || e?.logo?.url || null,
+  };
+};
+
 // Events
-export const getEvents = async (query = 'sports', extra = {}) => {
-  const q = encodeURIComponent(query);
-  const url = `${API_URL}/events/?q=${q}`;
+export const getEvents = async (query = 'sports', lat = null, lon = null, extra = {}) => {
+  const q = encodeURIComponent(query || 'sports');
+  // If geolocation provided, use aggregate endpoint which already normalizes
+  const baseUrl = (lat != null && lon != null)
+    ? `${API_URL}/aggregate/events?q=${q}&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`
+    : `${API_URL}/events/?q=${q}`;
   try {
-    const res = await fetchWithTimeout(url, {
+    const res = await fetchWithTimeout(baseUrl, {
       method: 'GET',
       headers: getAuthHeaders(),
       ...extra
     });
-    return await handleResponse(res);
+    const data = await handleResponse(res);
+    // Normalize into consistent shape for UI
+    if (Array.isArray(data?.events)) {
+      return { events: data.events.map((e, i) => normalizeEventItem(e, i)) };
+    }
+    if (Array.isArray(data?.data)) {
+      return { events: data.data.map((e, i) => normalizeEventItem(e, i)) };
+    }
+    return { events: [] };
   } catch (e) {
     console.error('getEvents error:', e);
-    throw e;
+    return { events: [] };
   }
 };
 
 export const getEventById = async (id) => {
   try {
-    const res = await fetchWithTimeout(`${API_URL}/events${encodeURIComponent(id)}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-    return await handleResponse(res);
+    // Backend likely expects /events/{id}
+    const res = await fetchWithTimeout(`${API_URL}/events/${encodeURIComponent(id)}`);
+    const data = await handleResponse(res);
+    return normalizeEventItem(data, 0);
   } catch (error) {
     console.warn('getEventById fallback:', error.message);
     return null;
@@ -203,5 +238,21 @@ export const getLeaderboards = async (category = 'overall', timeframe = 'monthly
   } catch (error) {
     console.warn('getLeaderboards error:', error.message);
     return null;
+  }
+};
+
+// Sports events via Sportsbook proxy
+export const getSportsEvents = async (sport = 'nfl') => {
+  try {
+    const res = await fetchWithTimeout(`${API_URL}/sports/${encodeURIComponent(sport)}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    const data = await handleResponse(res);
+    // Ensure array
+    return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+  } catch (error) {
+    console.error('getSportsEvents error:', error);
+    return [];
   }
 };

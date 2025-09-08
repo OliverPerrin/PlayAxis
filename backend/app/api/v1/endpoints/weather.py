@@ -15,3 +15,12 @@ async def read_weather(
         return await fetch_weather(lat, lon, include_hourly=hourly, hours=hours)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Weather upstream error: {e}")
+
+@router.get("", response_model=WeatherResponse)
+async def read_weather_no_slash(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    hourly: bool = Query(False, description="Include hourly forecast"),
+    hours: int = Query(0, ge=0, le=72, description="Limit number of hourly points if hourly=true")
+):
+    return await read_weather(lat=lat, lon=lon, hourly=hourly, hours=hours)
