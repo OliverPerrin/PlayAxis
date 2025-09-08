@@ -15,9 +15,9 @@ def _cache_key(query: str, page: int, limit: int) -> str:
 async def aggregate_events(query: str = "sports", page: int = 1, limit: int = 20) -> EventsResponse:
     key = _cache_key(query, page, limit)
 
-async def producer():
-    safe_query = (query or '').strip() or 'sports'
-    events: List[Event] = await fetch_eventbrite_events(query=safe_query, page=page, size=limit)
+    async def producer():
+        safe_query = (query or '').strip() or 'sports'
+        events: List[Event] = await fetch_eventbrite_events(query=safe_query, page=page, size=limit)
         events.sort(key=lambda e: (e.start or "9999"))
         if limit:
             trimmed = events[:limit]
