@@ -1,6 +1,6 @@
 import httpx
 import logging
-from typing import Optional
+from typing import Optional, List
 from app.core.config import settings
 from app.models.user import User
 
@@ -10,6 +10,9 @@ async def get_eventbrite_events(query: str,
                                 lat: float | None = None,
                                 lon: float | None = None,
                                 current_user: User | None = None) -> dict:
+    """
+    Returns raw Eventbrite search response (original behavior).
+    """
     try:
         token = getattr(current_user, "eventbrite_access_token", None) or settings.EVENTBRITE_API_KEY
         if not token:
@@ -53,3 +56,53 @@ async def get_eventbrite_events(query: str,
     except Exception:
         logger.exception("Eventbrite API exception")
         return {"events": []}
+
+
+# ---- New code below: normalization + wrapper ----
+from app.schemas.event import Event  # imported here to avoid circulars
+
+def _normalize_eventbrite_event(raw: dict) -> Event | None:
+    try:
+        venue = raw.get("venue") or {}
+        address = venue.get("address") or {}
+        return Event(
+            id=str(raw.get("id")),
+            source="eventbrite",
+            name=(raw.get("name") or {}).get("text") or "Untitled",
+            description=raw.get("summary") or (raw.get("description") or {}).get("text"),
+            url=raw.get("url"),
+            start=(raw.get("start") or {}).get("utc"),
+            end=(raw.get("end") or {}).get("utc"),
+            timezone=(raw.get("start") or {}).get("timezone"),
+            venue=venue.get("name"),
+            city=address.get("city"),
+            country=address.get("country"),
+            latitude=venue.get("latitude"),
+            longitude=venue.get("longitude"),
+            category=(raw.get("category") or {}).get("short_name"),
+            image=(raw.get("logo") or {}).get("url"),
+            price=None,  # Could augment later
+        )
+    except Exception as e:
+        logger.debug(f"Failed to normalize eventbrite event id={raw.get('id')} err={e}")
+        return None
+
+async def fetch_eventbrite_events(query: str = "sports",
+                                  page: int = 1,
+                                  size: int = 20,
+                                  lat: float | None = None,
+                                  lon: float | None = None,
+                                  current_user: User | None = None) -> List[Event]:
+    """
+    Wrapper expected by services/events.py (aggregator).
+    Produces a list of normalized Event objects.
+    """
+    raw = await get_eventbrite_events(query=query, lat=lat, lon=lon, current_user=current_user)
+    out: List[Event] = []
+    for ev in raw.get("events", []):
+        norm = _normalize_eventbrite_event(ev)
+        if norm:
+            out.append(norm)
+    if size:
+        out = out[:size]
+    return out
