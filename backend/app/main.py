@@ -2,14 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db.database import Base, engine, DB_KIND
-from .db import base as _models  # register models
+from .db import base as _models  # noqa: F401
 from .api.v1.api import api_router
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="MultiSportApp API", version="1.0.0")
+# redirect_slashes=False stops automatic 307 redirects (handles /events vs /events/)
+app = FastAPI(title="MultiSportApp API", version="1.0.0", redirect_slashes=False)
 
-# Permissive CORS to unblock preflights
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -18,9 +18,8 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    # Allow common hosted frontends (regex)
     allow_origin_regex=r"https?://([a-z0-9-]+\.)*(netlify\.app|vercel\.app|koyeb\.app)$",
-    allow_credentials=True,           # okay with regex (not "*" wildcard)
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],

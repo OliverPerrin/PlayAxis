@@ -1,18 +1,15 @@
 from __future__ import annotations
 import time
 import asyncio
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 class TTLCache:
-    """
-    Very light in‑process async-aware TTL cache.
-    Not multi-process safe. Ideal for ephemeral API token + small lookups.
-    """
+    """In‑process async-aware TTL cache (non-distributed)."""
     def __init__(self):
         self._store: dict[str, tuple[float, Any]] = {}
         self._lock = asyncio.Lock()
 
-    async def get(self, key: str) -> Any:
+    async def get(self, key: str):
         async with self._lock:
             item = self._store.get(key)
             if not item:

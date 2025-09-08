@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("/", response_model=StreamsResponse)
 async def get_streams(
-    game_id: str | None = Query(None, description="Optional Twitch game ID"),
+    game_id: str | None = Query(None),
     first: int = Query(10, ge=1, le=20)
 ):
     try:

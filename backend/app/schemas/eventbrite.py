@@ -16,9 +16,7 @@ async def fetch_eventbrite_events(query: str = "sports", page: int = 1, size: in
         "expand": "venue",
         "sort_by": "date"
     }
-    headers = {
-        "Authorization": f"Bearer {EVENTBRITE_KEY}"
-    }
+    headers = {"Authorization": f"Bearer {EVENTBRITE_KEY}"}
     async with httpx.AsyncClient(timeout=20.0) as client:
         r = await client.get(f"{EVENTBRITE_BASE}/events/search/", params=params, headers=headers)
         r.raise_for_status()
@@ -44,9 +42,8 @@ async def fetch_eventbrite_events(query: str = "sports", page: int = 1, size: in
                 longitude=float(venue.get("longitude")) if venue.get("longitude") else None,
                 category=(ev.get("category", {}) or {}).get("short_name"),
                 image=(ev.get("logo", {}) or {}).get("url"),
-                price=None  # Could augment with ticket classes endpoint if needed
+                price=None
             ))
         except Exception:
-            # Skip malformed event
             continue
     return out

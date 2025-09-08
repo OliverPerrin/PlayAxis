@@ -62,15 +62,19 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
 };
 
 // Events
-export const getEvents = async (query = 'sports', lat = null, lon = null) => {
+export const getEvents = async (query = 'sports', extra = {}) => {
+  const q = encodeURIComponent(query);
+  const url = `${API_URL}/events/?q=${q}`;
   try {
-    let url = `${API_URL}/events?q=${encodeURIComponent(query)}`;
-    if (lat && lon) url += `&lat=${lat}&lon=${lon}`;
-    const res = await fetchWithTimeout(url, { method: 'GET', headers: getAuthHeaders() });
+    const res = await fetchWithTimeout(url, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      ...extra
+    });
     return await handleResponse(res);
-  } catch (error) {
-    console.error('getEvents error:', error);
-    return { events: [] };
+  } catch (e) {
+    console.error('getEvents error:', e);
+    throw e;
   }
 };
 

@@ -1,8 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List
 
 class WeatherCurrent(BaseModel):
-    temperature_c: float = Field(..., description="Temperature in Celsius")
+    temperature_c: float
     temperature_f: float
     windspeed_kmh: float
     windspeed_mph: float
