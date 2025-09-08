@@ -21,7 +21,7 @@ async def get_eventbrite_events(query: str,
 
         headers = {
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
+            "Accept": "application/json",
         }
         params: dict = {
             "q": query or "sports",
@@ -38,13 +38,24 @@ async def get_eventbrite_events(query: str,
             # Avoid over-restrictive "online only"; use a broad default region to return results
             params["location.address"] = "United States"
 
-        url = f"{settings.EVENTBRITE_API_URL}/events/search/"
+        base = settings.EVENTBRITE_API_URL.rstrip("/")
+        url = f"{base}/events/search/"
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(url, headers=headers, params=params)
             if r.status_code != 200:
-                logger.error(f"Eventbrite {r.status_code} params={params} body={r.text[:300]}")
-                return {"events": []}
-            data = r.json()
+                # Retry with token as query parameter (some setups require this)
+                params_with_token = dict(params)
+                params_with_token["token"] = token
+                # Also try path without trailing slash as a fallback
+                alt_url = f"{base}/events/search"
+                r2 = await client.get(alt_url, params=params_with_token)
+                if r2.status_code != 200:
+                    logger.error(f"Eventbrite {r.status_code} params={params} body={r.text[:300]}")
+                    logger.error(f"Eventbrite retry {r2.status_code} params={params_with_token} body={r2.text[:300]}")
+                    return {"events": []}
+                data = r2.json()
+            else:
+                data = r.json()
             for ev in data.get("events", []):
                 venue = ev.get("venue") or {}
                 for key in ("latitude", "longitude"):
