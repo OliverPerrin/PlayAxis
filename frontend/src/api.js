@@ -76,7 +76,7 @@ export const getEvents = async (query = 'sports', lat = null, lon = null) => {
 
 export const getEventById = async (id) => {
   try {
-    const res = await fetchWithTimeout(`${API_URL}/events/${encodeURIComponent(id)}`, {
+    const res = await fetchWithTimeout(`${API_URL}/events${encodeURIComponent(id)}`, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
