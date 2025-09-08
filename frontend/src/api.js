@@ -101,13 +101,20 @@ export const getEvents = async (query = 'sports', lat = null, lon = null, extra 
     });
     const data = await handleResponse(res);
     // Normalize into consistent shape for UI
-    if (Array.isArray(data?.events)) {
-      return { events: data.events.map((e, i) => normalizeEventItem(e, i)) };
+    let list = [];
+    if (Array.isArray(data?.events)) list = data.events;
+    else if (Array.isArray(data?.data)) list = data.data;
+
+    // Fallback: if no events from /events, try /aggregate/events for broader sources
+    if (!list.length && (lat == null || lon == null)) {
+      const res2 = await fetchWithTimeout(`${API_URL}/aggregate/events?q=${q}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      const data2 = await handleResponse(res2);
+      if (Array.isArray(data2?.events)) list = data2.events;
     }
-    if (Array.isArray(data?.data)) {
-      return { events: data.data.map((e, i) => normalizeEventItem(e, i)) };
-    }
-    return { events: [] };
+    return { events: list.map((e, i) => normalizeEventItem(e, i)) };
   } catch (e) {
     console.error('getEvents error:', e);
     return { events: [] };

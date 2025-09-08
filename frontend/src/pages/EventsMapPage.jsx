@@ -1,8 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getMe } from '../api';
 
-const API_BASE = '/api/v1';
+// Use the same base as the rest of the app through the proxy
+const API_BASE = (() => {
+  const env = process.env.REACT_APP_API_URL;
+  if (env) return env.replace(/\/$/, '') + '/api/v1';
+  if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) return '/api/v1';
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) return '/api/v1';
+  return 'https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/v1';
+})();
 
 const fetchAggregate = async ({ q, lat, lon }) => {
   const params = new URLSearchParams();
@@ -11,12 +19,10 @@ const fetchAggregate = async ({ q, lat, lon }) => {
     params.set('lat', lat);
     params.set('lon', lon);
   }
-  const res = await fetch(`${API_BASE}/aggregate/events?${params.toString()}`, {
-    headers: {
-      'Accept': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-    },
-  });
+  const headers = { 'Accept': 'application/json' };
+  const token = localStorage.getItem('token');
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/aggregate/events?${params.toString()}`, { headers });
   if (!res.ok) throw new Error('Failed to load events');
   return res.json();
 };

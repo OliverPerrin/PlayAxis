@@ -35,7 +35,8 @@ async def get_eventbrite_events(query: str,
                 "location.within": "50km",
             })
         else:
-            params["location.address"] = "online"
+            # Avoid over-restrictive "online only"; use a broad default region to return results
+            params["location.address"] = "United States"
 
         url = f"{settings.EVENTBRITE_API_URL}/events/search/"
         async with httpx.AsyncClient(timeout=30.0) as client:
