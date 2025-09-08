@@ -4,9 +4,8 @@ from app.schemas.event import EventsResponse
 
 router = APIRouter()
 
-# Trailing-slash tolerant: provide both
 @router.get("/", response_model=EventsResponse)
-async def list_events(
+async def list_events_slash(
     q: str = Query("sports"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50)
@@ -22,4 +21,4 @@ async def list_events_no_slash(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50)
 ):
-    return await list_events(q=q, page=page, limit=limit)
+    return await list_events_slash(q=q, page=page, limit=limit)

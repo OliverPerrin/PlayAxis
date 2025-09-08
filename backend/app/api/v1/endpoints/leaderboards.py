@@ -15,11 +15,8 @@ class LeaderboardResponse(BaseModel):
     total: int
     data: List[LeaderEntry]
 
-@router.get("/", response_model=LeaderboardResponse)
-async def get_leaderboard(
-    category: str = Query("overall"),
-    timeframe: str = Query("monthly")
-):
+def _build_demo_leaderboard(category: str, timeframe: str) -> LeaderboardResponse:
+    # Replace with real aggregation when ready
     sample = [
         LeaderEntry(username="demo1", score=1200, rank=1),
         LeaderEntry(username="demo2", score=1150, rank=2),
@@ -31,3 +28,17 @@ async def get_leaderboard(
         total=len(sample),
         data=sample
     )
+
+@router.get("/", response_model=LeaderboardResponse)
+async def get_leaderboard_slash(
+    category: str = Query("overall"),
+    timeframe: str = Query("monthly")
+):
+    return _build_demo_leaderboard(category, timeframe)
+
+@router.get("", response_model=LeaderboardResponse)
+async def get_leaderboard_no_slash(
+    category: str = Query("overall"),
+    timeframe: str = Query("monthly")
+):
+    return _build_demo_leaderboard(category, timeframe)

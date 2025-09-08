@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Callable
 
 class TTLCache:
-    """In‑process async-aware TTL cache (non-distributed)."""
+    """Simple async-safe in-process TTL cache."""
     def __init__(self):
         self._store: dict[str, tuple[float, Any]] = {}
         self._lock = asyncio.Lock()

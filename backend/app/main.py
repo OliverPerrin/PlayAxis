@@ -2,12 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db.database import Base, engine, DB_KIND
-from .db import base as _models  # noqa: F401
+from .db import base as _models
 from .api.v1.api import api_router
 
 Base.metadata.create_all(bind=engine)
 
-# redirect_slashes=False stops automatic 307 redirects (handles /events vs /events/)
 app = FastAPI(title="MultiSportApp API", version="1.0.0", redirect_slashes=False)
 
 app.add_middleware(
