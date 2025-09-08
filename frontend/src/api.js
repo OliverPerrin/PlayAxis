@@ -185,6 +185,12 @@ export const getWeather = async (lat, lon) => {
   }
 };
 
+export const getBackendWeather = async (lat, lon, hourly=false, hours=0) => {
+  const url = `${API_URL}/weather?lat=${lat}&lon=${lon}&hourly=${hourly}&hours=${hours}`;
+  const res = await fetchWithTimeout(url, { method: 'GET', headers: getAuthHeaders() });
+  return handleResponse(res);
+};
+
 export const getLeaderboards = async (category = 'overall', timeframe = 'monthly') => {
   try {
     const url = `${API_URL}/leaderboards?category=${encodeURIComponent(category)}&timeframe=${encodeURIComponent(timeframe)}`;

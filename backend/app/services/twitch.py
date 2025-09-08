@@ -1,59 +1,69 @@
-import time
+from __future__ import annotations
 import httpx
-import logging
-from typing import Optional
+from typing import List
 from app.core.config import settings
+from app.core.cache import cache
+from app.schemas.streams import Stream, StreamsResponse
 
-logger = logging.getLogger(__name__)
+TWITCH_ID = settings.TWITCH_CLIENT_ID
+TWITCH_SECRET = settings.TWITCH_CLIENT_SECRET
+TWITCH_BASE = "https://api.twitch.tv/helix"
 
-_TOKEN: Optional[str] = None
-_EXP: float = 0.0
+TOKEN_CACHE_KEY = "twitch:app_token"
 
-async def _get_app_token() -> str:
-    global _TOKEN, _EXP
-    now = time.time()
-    if _TOKEN and now < _EXP - 60:
-        return _TOKEN
-    if not settings.TWITCH_CLIENT_ID or not settings.TWITCH_CLIENT_SECRET:
+async def _fetch_app_token():
+    if not TWITCH_ID or not TWITCH_SECRET:
         raise RuntimeError("Twitch credentials not configured")
-    data = {
-        "client_id": settings.TWITCH_CLIENT_ID,
-        "client_secret": settings.TWITCH_CLIENT_SECRET,
-        "grant_type": "client_credentials"
-    }
     async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.post("https://id.twitch.tv/oauth2/token", data=data)
-        if r.status_code != 200:
-            logger.error(f"Twitch token error {r.status_code} body={r.text[:200]}")
-            raise RuntimeError("Twitch token fetch failed")
-        payload = r.json()
-        _TOKEN = payload["access_token"]
-        _EXP = now + int(payload.get("expires_in", 3600))
-        return _TOKEN
+        r = await client.post(
+            "https://id.twitch.tv/oauth2/token",
+            params={
+                "client_id": TWITCH_ID,
+                "client_secret": TWITCH_SECRET,
+                "grant_type": "client_credentials"
+            }
+        )
+        r.raise_for_status()
+        data = r.json()
+        return data["access_token"], int(data.get("expires_in", 3600))
 
-async def get_twitch_streams(game_id: Optional[str] = None, game_name: Optional[str] = None, first: int = 12):
-    token = await _get_app_token()
+async def get_app_token() -> str:
+    async def producer():
+        token, ttl = await _fetch_app_token()
+        # subtract small safety margin
+        await cache.set(TOKEN_CACHE_KEY, token, max(ttl - 60, 300))
+        return token
+    existing = await cache.get(TOKEN_CACHE_KEY)
+    if existing:
+        return existing
+    return await producer()
+
+async def fetch_streams(game_id: str | None = None, first: int = 10) -> StreamsResponse:
+    token = await get_app_token()
     headers = {
-        "Client-Id": settings.TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token}",
+        "Client-ID": TWITCH_ID,
+        "Authorization": f"Bearer {token}"
     }
-    params = {"first": min(max(first, 1), 20)}
+    params = {"first": min(first, 20)}
+    if game_id:
+        params["game_id"] = game_id
+
     async with httpx.AsyncClient(timeout=15.0) as client:
-        # Resolve game_name to id if provided
-        if game_name and not game_id:
-            gr = await client.get("https://api.twitch.tv/helix/games",
-                                  headers=headers, params={"name": game_name})
-            if gr.status_code == 200:
-                gd = gr.json().get("data") or []
-                if gd:
-                    game_id = gd[0].get("id")
-            else:
-                logger.warning(f"Twitch game lookup {gr.status_code} body={gr.text[:150]}")
-        if game_id:
-            params["game_id"] = game_id
-        r = await client.get("https://api.twitch.tv/helix/streams",
-                             headers=headers, params=params)
-        if r.status_code != 200:
-            logger.error(f"Twitch streams {r.status_code} body={r.text[:200]}")
-            return {"streams": []}
-        return {"streams": r.json().get("data", [])}
+        r = await client.get(f"{TWITCH_BASE}/streams", headers=headers, params=params)
+        r.raise_for_status()
+        payload = r.json()
+
+    streams: List[Stream] = []
+    for item in payload.get("data", []):
+        streams.append(Stream(
+            id=item.get("id"),
+            user_name=item.get("user_name"),
+            title=item.get("title"),
+            viewer_count=item.get("viewer_count", 0),
+            started_at=item.get("started_at"),
+            thumbnail_url=item.get("thumbnail_url"),
+            language=item.get("language"),
+            game_id=item.get("game_id"),
+        ))
+
+    return StreamsResponse(data=streams, total=len(streams))

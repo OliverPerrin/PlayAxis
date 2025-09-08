@@ -1,15 +1,15 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.services.twitch import get_twitch_streams
+from app.services.twitch import fetch_streams
+from app.schemas.streams import StreamsResponse
 
 router = APIRouter()
 
-@router.get("/")
-async def read_streams(
-    game_id: str | None = Query(default=None),
-    game_name: str | None = Query(default=None),
-    first: int = Query(default=12, ge=1, le=20),
+@router.get("/", response_model=StreamsResponse)
+async def get_streams(
+    game_id: str | None = Query(None, description="Optional Twitch game ID"),
+    first: int = Query(10, ge=1, le=20)
 ):
     try:
-        return await get_twitch_streams(game_id=game_id, game_name=game_name, first=first)
+        return await fetch_streams(game_id=game_id, first=first)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=f"Twitch fetch failed: {e}")
