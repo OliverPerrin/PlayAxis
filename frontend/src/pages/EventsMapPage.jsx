@@ -53,6 +53,7 @@ export default function EventsMapPage() {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [error, setError] = useState(null);
+  const [query, setQuery] = useState('');
 
   const center = useMemo(() => [me.lat, me.lon], [me.lat, me.lon]);
 

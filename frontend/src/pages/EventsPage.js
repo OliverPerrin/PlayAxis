@@ -11,6 +11,7 @@ const EventsPage = () => {
   const [events, setEvents] = useState([]);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
 
   useEffect(() => {
     let mounted = true;
