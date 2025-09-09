@@ -89,7 +89,7 @@ const DiscoverPage = () => {
       setLoading(true);
       setError('');
       try {
-        const qBase = CATEGORY_QUERY[selectedCategory] || 'sports';
+        const qBase = CATEGORY_QUERY[selectedCategory];
         const q = searchTerm ? `${qBase} ${searchTerm}` : qBase;
         const data = await getEvents(q, coords?.lat ?? null, coords?.lon ?? null);
         if (!mounted) return;

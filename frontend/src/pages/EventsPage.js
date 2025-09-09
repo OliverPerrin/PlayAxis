@@ -10,7 +10,6 @@ const EventsPage = () => {
   const isDark = theme === 'dark';
   const [events, setEvents] = useState([]);
   const navigate = useNavigate();
-  const [q, setQ] = useState('sports events');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

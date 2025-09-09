@@ -50,7 +50,6 @@ const Recenter = ({ lat, lon }) => {
 
 export default function EventsMapPage() {
   const me = useGeolocation();
-  const [query, setQuery] = useState('sports');
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [error, setError] = useState(null);
