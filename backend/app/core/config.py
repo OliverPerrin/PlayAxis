@@ -14,12 +14,14 @@ class Settings(BaseSettings):
     TWITCH_CLIENT_SECRET: str | None = None
     EVENTBRITE_API_KEY: str | None = None
     EVENTBRITE_CLIENT_SECRET: str | None = None
+    EVENTBRITE_PRIVATE_TOKEN: str | None = None
+    EVENTBRITE_PUBLIC_TOKEN: str | None = None
 
     # API URLs
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3"
     WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
-    TWITCH_API_URL: str = "https://localhost:8000/"
-    SPORTSBOOK_API_URL: str = "https://sportsbook-api.p.rapidapi.com/v1"
+    TWITCH_API_URL: str = "https://api.twitch.tv/helix/"
+    SPORTSBOOK_API_URL: str = "https://sportsradar-sportsbook-api.p.rapidapi.com"
 
     # Database
     DATABASE_URL: str
