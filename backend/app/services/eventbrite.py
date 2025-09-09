@@ -14,7 +14,7 @@ async def get_eventbrite_events(query: str,
     Returns raw Eventbrite search response (original behavior).
     """
     try:
-        token = settings.EVENTBRITE_API_KEY
+        token = settings.EVENTBRITE_PUBLIC_TOKEN
         if not token:
             logger.warning("Eventbrite: missing token")
             return {"events": []}
