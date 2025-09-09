@@ -5,10 +5,10 @@ from app.core.config import settings
 from app.schemas.event import Event
 
 EVENTBRITE_BASE = settings.EVENTBRITE_API_URL.rstrip("/")
-EVENTBRITE_KEY = settings.EVENTBRITE_API_KEY
+EVENTBRITE_PUBLIC_TOKEN = settings.EVENTBRITE_PUBLIC_TOKEN
 
 async def fetch_eventbrite_events(query: str = "sports", page: int = 1, size: int = 20) -> List[Event]:
-    if not EVENTBRITE_KEY:
+    if not EVENTBRITE_PUBLIC_TOKEN:
         return []
     params = {
         "q": query,
@@ -16,7 +16,7 @@ async def fetch_eventbrite_events(query: str = "sports", page: int = 1, size: in
         "expand": "venue",
         "sort_by": "date"
     }
-    headers = {"Authorization": f"Bearer {EVENTBRITE_KEY}"}
+    headers = {"Authorization": f"Bearer {EVENTBRITE_PUBLIC_TOKEN}"}
     async with httpx.AsyncClient(timeout=20.0) as client:
         r = await client.get(f"{EVENTBRITE_BASE}/events/search/", params=params, headers=headers)
         r.raise_for_status()

@@ -38,7 +38,7 @@ async def get_eventbrite_events(query: str,
             # Avoid over-restrictive "online only"; use a broad default region to return results
             params["location.address"] = "United States"
 
-        base = settings.EVENTBRITE_API_URL.rstrip("/")
+        base = settings.EVENTBRITE_API_URL
         url = f"{base}/events/search/"
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(url, headers=headers, params=params)
