@@ -24,10 +24,12 @@ async def get_eventbrite_events(query: str,
             "Accept": "application/json",
         }
         params: dict = {
-            "q": query or "sports",
+            # If query is empty or None, omit 'q' to get all events
             "expand": "venue,ticket_availability",
             "sort_by": "date",
         }
+        if query:
+            params["q"] = query
         if lat is not None and lon is not None:
             params.update({
                 "location.latitude": lat,
