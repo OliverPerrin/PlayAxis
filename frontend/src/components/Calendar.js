@@ -14,7 +14,7 @@ function Calendar({ selectedInterests }) {
       setError(null);
       
       try {
-        const query = selectedInterests.length > 0 ? selectedInterests.join(' OR ') : 'sports';
+  const query = selectedInterests.length > 0 ? selectedInterests.join(' OR ') : '';
         const data = await getEvents(query);
 
         // Check if data has events property and it's an array

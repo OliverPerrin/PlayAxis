@@ -57,7 +57,7 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
     clearTimeout(t);
     if (err.name === 'AbortError') throw new Error('Request timed out. Please try again.');
     // Normalize network errors to helpful message
-    throw new Error('Can’t reach the server. Please check your connection and try again.');
+    throw new Error(`Can’t reach the server. Please check your connection and try again.`);
   }
 };
 
@@ -87,8 +87,8 @@ const normalizeEventItem = (e, idx=0) => {
 };
 
 // Events
-export const getEvents = async (query = 'sports', lat = null, lon = null, extra = {}) => {
-  const q = encodeURIComponent(query || 'sports');
+export const getEvents = async (query = '', lat = null, lon = null, extra = {}) => {
+  const q = encodeURIComponent(query || '');
   // If geolocation provided, use aggregate endpoint which already normalizes
   const baseUrl = (lat != null && lon != null)
     ? `${API_URL}/aggregate/events?q=${q}&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`
@@ -200,7 +200,7 @@ export const getMe = async () => {
   return handleResponse(res);
 };
 
-// Streams, Weather, Leaderboards (unchanged)
+// Streams, Weather, Leaderboards
 export const getStreams = async (gameId) => {
   try {
     const res = await fetchWithTimeout(`${API_URL}/streams?game_id=${encodeURIComponent(gameId)}`, {
