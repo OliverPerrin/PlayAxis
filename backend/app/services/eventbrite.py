@@ -14,7 +14,7 @@ async def get_eventbrite_events(query: str,
     Returns raw Eventbrite search response (original behavior).
     """
     try:
-        token = getattr(current_user, "eventbrite_access_token", None) or settings.EVENTBRITE_API_KEY
+        token = settings.EVENTBRITE_API_KEY
         if not token:
             logger.warning("Eventbrite: missing token")
             return {"events": []}
@@ -65,8 +65,8 @@ async def get_eventbrite_events(query: str,
                         except Exception:
                             venue[key] = None
             return data
-    except Exception:
-        logger.exception("Eventbrite API exception")
+    except Exception as exc:
+        logger.exception(f"Eventbrite API exception: {exc}")
         return {"events": []}
 
 
