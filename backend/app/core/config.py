@@ -12,10 +12,14 @@ class Settings(BaseSettings):
     TWITCH_ACCESS_TOKEN: str | None = None
     X_RapidAPI_KEY: str | None = None
     TWITCH_CLIENT_SECRET: str | None = None
-    EVENTBRITE_API_KEY: str | None = None
+    # Eventbrite (legacy naming kept for compatibility)
+    EVENTBRITE_API_KEY: str | None = None  # Often serves as client_id
+    EVENTBRITE_CLIENT_ID: str | None = None  # Preferred explicit client id
     EVENTBRITE_CLIENT_SECRET: str | None = None
     EVENTBRITE_PRIVATE_TOKEN: str | None = None
     EVENTBRITE_PUBLIC_TOKEN: str | None = None
+    EVENTBRITE_OAUTH_TOKEN_URL: str = "https://www.eventbrite.com/oauth/token"
+    EVENTBRITE_REDIRECT_URI: str | None = None
 
     # API URLs
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3"

@@ -14,7 +14,12 @@ async def get_eventbrite_events(query: str,
     Returns raw Eventbrite search response (original behavior).
     """
     try:
-        token = settings.EVENTBRITE_PUBLIC_TOKEN
+        # Prefer user-specific OAuth token, then public, then private token
+        token = (
+            (getattr(current_user, "eventbrite_access_token", None) if current_user else None)
+            or settings.EVENTBRITE_PUBLIC_TOKEN
+            or settings.EVENTBRITE_PRIVATE_TOKEN
+        )
         if not token:
             logger.warning("Eventbrite: missing token")
             return {"events": []}
@@ -120,3 +125,43 @@ async def fetch_eventbrite_events(query: str = "sports",
     if size:
         out = out[:size]
     return out
+
+# ---- OAuth helpers ----
+async def exchange_eventbrite_code(code: str, redirect_uri: str | None = None) -> dict:
+    """Exchange authorization code for access & refresh tokens."""
+    client_id = settings.EVENTBRITE_CLIENT_ID or settings.EVENTBRITE_API_KEY
+    client_secret = settings.EVENTBRITE_CLIENT_SECRET
+    if not client_id or not client_secret:
+        raise RuntimeError("Eventbrite OAuth not configured (client id/secret missing)")
+    redirect_uri = redirect_uri or settings.EVENTBRITE_REDIRECT_URI
+    if not redirect_uri:
+        raise RuntimeError("Eventbrite redirect URI not configured")
+    form = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code,
+        "redirect_uri": redirect_uri,
+    }
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(settings.EVENTBRITE_OAUTH_TOKEN_URL, data=form, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        if r.status_code != 200:
+            logger.error(f"Eventbrite token exchange failed {r.status_code} body={r.text[:400]}")
+            raise RuntimeError("Eventbrite token exchange failed")
+        return r.json()
+
+async def refresh_eventbrite_token(refresh_token: str) -> dict:
+    client_id = settings.EVENTBRITE_CLIENT_ID or settings.EVENTBRITE_API_KEY
+    client_secret = settings.EVENTBRITE_CLIENT_SECRET
+    form = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+    }
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(settings.EVENTBRITE_OAUTH_TOKEN_URL, data=form, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        if r.status_code != 200:
+            logger.error(f"Eventbrite refresh failed {r.status_code} body={r.text[:400]}")
+            raise RuntimeError("Eventbrite token refresh failed")
+        return r.json()
