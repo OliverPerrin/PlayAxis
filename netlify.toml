@@ -26,6 +26,10 @@
   for = "/favicon.svg"
   [headers.values]
     Cache-Control = "public, max-age=3600"
+[[headers]]
+  for = "/playaxis-icon.svg"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
 
 [[headers]]
   for = "/manifest.json"
