@@ -61,37 +61,43 @@ async def get_eventbrite_events(query: str,
                 params_with_token["token"] = token
                 alt_url = f"{base}/events/search"  # without trailing slash
                 r2 = await client.get(alt_url, params=params_with_token)
-                if r2.status_code == 200:
-                    data = r2.json()
-                else:
-                    # If we used the public token and have a private token available, try again with private
-                    if token_used == "public" and settings.EVENTBRITE_PRIVATE_TOKEN:
-                        private_headers = {
-                            "Authorization": f"Bearer {settings.EVENTBRITE_PRIVATE_TOKEN}",
-                            "Accept": "application/json",
-                        }
-                        r3 = await client.get(url, headers=private_headers, params=params)
-                        if r3.status_code == 200:
-                            logger.info("Eventbrite: public token failed (status %s), private token succeeded", r.status_code)
-                            data = r3.json()
-                        else:
-                            # Final attempt alt path with private token as query param
-                            params_private = dict(params)
-                            params_private["token"] = settings.EVENTBRITE_PRIVATE_TOKEN
-                            r4 = await client.get(alt_url, params=params_private)
-                            if r4.status_code == 200:
-                                logger.info("Eventbrite: private token alt-path succeeded after public  failures")
-                                data = r4.json()
-                            else:
-                                logger.error(
-                                    f"Eventbrite failures initial={r.status_code} alt={r2.status_code} priv1={r3.status_code} privAlt={r4.status_code} token_used={token_used} params={params} body_init={r.text[:160]} body_priv={r3.text[:160]}"
-                                )
-                                return {"events": []}
+                    if r2.status_code == 200:
+                        data = r2.json()
                     else:
-                        logger.error(
-                            f"Eventbrite failure status={r.status_code} alt_status={r2.status_code} token_used={token_used} params={params} body={r.text[:200]}"
-                        )
-                        return {"events": []}
+                        # If both attempts 404, attempt organization events fallback
+                        if r.status_code == 404 and r2.status_code == 404:
+                            fallback = await _fallback_org_events(client, token, headers)
+                            if fallback:
+                                logger.info("Eventbrite: using organization events fallback (search unauthorized)")
+                                return fallback
+                        # If we used the public token and have a private token available, try again with private
+                        if token_used == "public" and settings.EVENTBRITE_PRIVATE_TOKEN:
+                            private_headers = {
+                                "Authorization": f"Bearer {settings.EVENTBRITE_PRIVATE_TOKEN}",
+                                "Accept": "application/json",
+                            }
+                            r3 = await client.get(url, headers=private_headers, params=params)
+                            if r3.status_code == 200:
+                                logger.info("Eventbrite: public token failed (status %s), private token succeeded", r.status_code)
+                                data = r3.json()
+                            else:
+                                # Final attempt alt path with private token as query param
+                                params_private = dict(params)
+                                params_private["token"] = settings.EVENTBRITE_PRIVATE_TOKEN
+                                r4 = await client.get(alt_url, params=params_private)
+                                if r4.status_code == 200:
+                                    logger.info("Eventbrite: private token alt-path succeeded after public failures")
+                                    data = r4.json()
+                                else:
+                                    logger.error(
+                                        f"Eventbrite failures initial={r.status_code} alt={r2.status_code} priv1={r3.status_code} privAlt={r4.status_code} token_used={token_used} params={params} body_init={r.text[:160]} body_priv={r3.text[:160]}"
+                                    )
+                                    return {"events": []}
+                        else:
+                            logger.error(
+                                f"Eventbrite failure status={r.status_code} alt_status={r2.status_code} token_used={token_used} params={params} body={r.text[:200]}"
+                            )
+                            return {"events": []}
             else:
                 data = r.json()
             for ev in data.get("events", []):
@@ -196,3 +202,30 @@ async def refresh_eventbrite_token(refresh_token: str) -> dict:
             logger.error(f"Eventbrite refresh failed {r.status_code} body={r.text[:400]}")
             raise RuntimeError("Eventbrite token refresh failed")
         return r.json()
+
+
+async def _fallback_org_events(client: httpx.AsyncClient, token: str, headers: dict) -> dict | None:
+    """Attempt to list events via organization endpoint when /events/search is not accessible.
+    Returns dict shaped similarly with an 'events' list if successful, else None."""
+    try:
+        # Fetch user to get organization id
+        user_resp = await client.get(f"{settings.EVENTBRITE_API_URL}/users/me/", headers=headers)
+        if user_resp.status_code != 200:
+            return None
+        user_json = user_resp.json()
+        orgs = user_json.get("organizations", []) or []
+        org_id = None
+        if orgs:
+            org_id = orgs[0].get("id")
+        if not org_id:
+            return None
+        ev_resp = await client.get(f"{settings.EVENTBRITE_API_URL}/organizations/{org_id}/events/", headers=headers, params={"expand": "venue,ticket_availability"})
+        if ev_resp.status_code != 200:
+            return None
+        data = ev_resp.json()
+        # Normalize shape to match search result top-level 'events'
+        if isinstance(data, dict) and "events" in data:
+            return data
+        return {"events": data.get("events", [])}
+    except Exception:
+        return None
