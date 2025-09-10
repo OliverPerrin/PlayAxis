@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("/", response_model=EventsResponse)
 async def list_events_slash(
-    q: str = Query("sports"),
+    q: str = Query(""),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50)
 ):
@@ -17,7 +17,7 @@ async def list_events_slash(
 
 @router.get("", response_model=EventsResponse)
 async def list_events_no_slash(
-    q: str = Query("sports"),
+    q: str = Query(""),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50)
 ):

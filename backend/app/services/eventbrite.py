@@ -14,11 +14,16 @@ async def get_eventbrite_events(query: str,
     Returns raw Eventbrite search response (original behavior).
     """
     try:
-        # Prefer user-specific OAuth token, then public, then private token
+        # Prefer user OAuth token, then PRIVATE token, then PUBLIC token (public often not valid for search API)
         token = (
             (getattr(current_user, "eventbrite_access_token", None) if current_user else None)
-            or settings.EVENTBRITE_PUBLIC_TOKEN
             or settings.EVENTBRITE_PRIVATE_TOKEN
+            or settings.EVENTBRITE_PUBLIC_TOKEN
+        )
+        token_used = (
+            "user" if (current_user and getattr(current_user, "eventbrite_access_token", None)) else
+            ("private" if settings.EVENTBRITE_PRIVATE_TOKEN and token == settings.EVENTBRITE_PRIVATE_TOKEN else
+             ("public" if settings.EVENTBRITE_PUBLIC_TOKEN and token == settings.EVENTBRITE_PUBLIC_TOKEN else "unknown"))
         )
         if not token:
             logger.warning("Eventbrite: missing token")
@@ -49,18 +54,44 @@ async def get_eventbrite_events(query: str,
         url = f"{base}/events/search/"
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(url, headers=headers, params=params)
+            # Fallback sequence: (1) alt path + token query param, (2) if initial token was public try private token
             if r.status_code != 200:
-                # Retry with token as query parameter (some setups require this)
+                # First retry with token as query param & alt path
                 params_with_token = dict(params)
                 params_with_token["token"] = token
-                # Also try path without trailing slash as a fallback
-                alt_url = f"{base}/events/search"
+                alt_url = f"{base}/events/search"  # without trailing slash
                 r2 = await client.get(alt_url, params=params_with_token)
-                if r2.status_code != 200:
-                    logger.error(f"Eventbrite {r.status_code} params={params} body={r.text[:300]}")
-                    logger.error(f"Eventbrite retry {r2.status_code} params={params_with_token} body={r2.text[:300]}")
-                    return {"events": []}
-                data = r2.json()
+                if r2.status_code == 200:
+                    data = r2.json()
+                else:
+                    # If we used the public token and have a private token available, try again with private
+                    if token_used == "public" and settings.EVENTBRITE_PRIVATE_TOKEN:
+                        private_headers = {
+                            "Authorization": f"Bearer {settings.EVENTBRITE_PRIVATE_TOKEN}",
+                            "Accept": "application/json",
+                        }
+                        r3 = await client.get(url, headers=private_headers, params=params)
+                        if r3.status_code == 200:
+                            logger.info("Eventbrite: public token failed (status %s), private token succeeded", r.status_code)
+                            data = r3.json()
+                        else:
+                            # Final attempt alt path with private token as query param
+                            params_private = dict(params)
+                            params_private["token"] = settings.EVENTBRITE_PRIVATE_TOKEN
+                            r4 = await client.get(alt_url, params=params_private)
+                            if r4.status_code == 200:
+                                logger.info("Eventbrite: private token alt-path succeeded after public  failures")
+                                data = r4.json()
+                            else:
+                                logger.error(
+                                    f"Eventbrite failures initial={r.status_code} alt={r2.status_code} priv1={r3.status_code} privAlt={r4.status_code} token_used={token_used} params={params} body_init={r.text[:160]} body_priv={r3.text[:160]}"
+                                )
+                                return {"events": []}
+                    else:
+                        logger.error(
+                            f"Eventbrite failure status={r.status_code} alt_status={r2.status_code} token_used={token_used} params={params} body={r.text[:200]}"
+                        )
+                        return {"events": []}
             else:
                 data = r.json()
             for ev in data.get("events", []):
