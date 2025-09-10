@@ -61,15 +61,15 @@ async def get_eventbrite_events(query: str,
                 params_with_token["token"] = token
                 alt_url = f"{base}/events/search"  # without trailing slash
                 r2 = await client.get(alt_url, params=params_with_token)
-                    if r2.status_code == 200:
+                if r2.status_code == 200:
                         data = r2.json()
-                    else:
-                        # If both attempts 404, attempt organization events fallback
-                        if r.status_code == 404 and r2.status_code == 404:
-                            fallback = await _fallback_org_events(client, token, headers)
-                            if fallback:
-                                logger.info("Eventbrite: using organization events fallback (search unauthorized)")
-                                return fallback
+                else:
+                    # If both attempts 404, attempt organization events fallback
+                    if r.status_code == 404 and r2.status_code == 404:
+                        fallback = await _fallback_org_events(client, token, headers)
+                        if fallback:
+                            logger.info("Eventbrite: using organization events fallback (search unauthorized)")
+                            return fallback
                         # If we used the public token and have a private token available, try again with private
                         if token_used == "public" and settings.EVENTBRITE_PRIVATE_TOKEN:
                             private_headers = {
