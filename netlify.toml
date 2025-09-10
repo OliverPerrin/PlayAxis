@@ -1,6 +1,6 @@
 [build]
   command = "cd frontend && npm install --no-audit --no-fund && npm run build"
-  publish = "./frontend/public"
+  publish = "./frontend/build"
 
 [build.environment]
   GENERATE_SOURCEMAP = "false"
