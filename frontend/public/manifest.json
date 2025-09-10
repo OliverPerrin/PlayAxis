@@ -1,16 +1,16 @@
 {
   "short_name": "PlayAxis",
   "name": "PlayAxis",
-  "start_url": "./?v=5",
+  "start_url": "./?v=4",
   "display": "standalone",
   "theme_color": "#0B1220",
   "background_color": "#0B1220",
   "description": "Discover events, set goals, and move together.",
   "icons": [
     {
-      "src": "playaxis-icon.png?v=2",
-      "type": "image/png+xml",
-      "sizes": "any"
+      "src": "playaxis-icon.png?v=4",
+      "type": "image/png",
+      "sizes": "512x512"
     }
   ]
 }
