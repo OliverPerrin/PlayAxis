@@ -33,6 +33,7 @@ async def get_eventbrite_events(query: str,
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
         }
+        token_fp = (token[:4] + "..." + token[-4:]) if token and len(token) > 12 else "token"
         params: dict = {
             # If query is empty or None, omit 'q' to get all events
             "expand": "venue,ticket_availability",
@@ -50,8 +51,9 @@ async def get_eventbrite_events(query: str,
             # Avoid over-restrictive "online only"; use a broad default region to return results
             params["location.address"] = "United States"
 
-        base = settings.EVENTBRITE_API_URL
+        base = settings.EVENTBRITE_API_URL.rstrip("/")
         url = f"{base}/events/search/"
+        logger.debug(f"Eventbrite debug: base={base} url={url} token_used={token_used} token_fp={token_fp} params_keys={list(params.keys())}")
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(url, headers=headers, params=params)
             # Fallback sequence: (1) alt path + token query param, (2) if initial token was public try private token
