@@ -56,7 +56,6 @@ async def get_eventbrite_events(query: str,
         logger.debug(f"Eventbrite debug: base={base} url={url} token_used={token_used} token_fp={token_fp} params_keys={list(params.keys())}")
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(url, headers=headers, params=params)
-            # Fallback sequence: (1) alt path + token query param, (2) if initial token was public try private token
             if r.status_code != 200:
                 # First retry with token as query param & alt path
                 params_with_token = dict(params)
@@ -72,7 +71,6 @@ async def get_eventbrite_events(query: str,
                         if fallback:
                             logger.info("Eventbrite: using organization events fallback (search unauthorized)")
                             return fallback
-                        # If we used the public token and have a private token available, try again with private
                         if token_used == "public" and settings.EVENTBRITE_PRIVATE_TOKEN:
                             private_headers = {
                                 "Authorization": f"Bearer {settings.EVENTBRITE_PRIVATE_TOKEN}",
@@ -83,7 +81,6 @@ async def get_eventbrite_events(query: str,
                                 logger.info("Eventbrite: public token failed (status %s), private token succeeded", r.status_code)
                                 data = r3.json()
                             else:
-                                # Final attempt alt path with private token as query param
                                 params_private = dict(params)
                                 params_private["token"] = settings.EVENTBRITE_PRIVATE_TOKEN
                                 r4 = await client.get(alt_url, params=params_private)
