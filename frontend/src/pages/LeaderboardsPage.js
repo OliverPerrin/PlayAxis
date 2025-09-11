@@ -73,6 +73,9 @@ const LeaderboardsPage = () => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
+  // Top 3 cached subset for podium
+  const top3 = useMemo(() => rows.slice(0, 3), [rows]);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
