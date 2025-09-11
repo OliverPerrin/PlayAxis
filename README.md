@@ -1,4 +1,4 @@
-# MultiSportApp
+# PlayAxis: Multi-Sports and Events Web App
 
 An event & live content aggregation platform spanning traditional sports, endurance activities, and esports. The backend normalizes external sources (live streams, events, weather, odds context) into a unified API consumed by a React frontend. OAuth (Eventbrite) lets users enrich personal discovery with their own authorized event data.
 
