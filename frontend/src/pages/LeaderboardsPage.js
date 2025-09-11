@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useContext } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrophyIcon,
@@ -9,6 +9,7 @@ import {
   UserIcon,
 } from '@heroicons/react/24/outline';
 import { getLeaderboards } from '../api';
+import { ThemeContext } from '../contexts/ThemeContext';
 
 const normalizeLeaderboard = (payload, fallbackCategory) => {
   const MOCK_DATA = {
@@ -69,6 +70,8 @@ const LeaderboardsPage = () => {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+  const { theme } = useContext(ThemeContext);
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     let mounted = true;
@@ -83,12 +86,13 @@ const LeaderboardsPage = () => {
           name: r.name || r.username || 'Athlete',
           avatar: r.avatar || '🏅',
           score: r.score ?? r.points ?? r.value ?? 0,
-          streak: r.streak ?? r.current_streak ?? 0,
+            streak: r.streak ?? r.current_streak ?? 0,
           change: r.change ?? r.rank_change ?? 0,
           country: r.country || r.flag || '🌍',
         }));
         setRows(normalized);
       } catch (e) {
+        if (!mounted) return;
         setError('Showing demo leaderboard.');
         setRows(normalizeLeaderboard(null, category));
       } finally {
@@ -98,18 +102,27 @@ const LeaderboardsPage = () => {
     return () => { mounted = false; };
   }, [category, timeframe]);
 
-  const top3 = useMemo(() => rows.slice(0, 3), [rows]);
+  // Style tokens
+  const heading = isDark ? 'text-white' : 'text-slate-900';
+  const sub = isDark ? 'text-gray-300' : 'text-slate-600';
+  const surface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
+  const pod = surface; // same visual treatment
+  const toggleBase = isDark ? 'text-gray-300 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100';
+  const toggleActive = 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white';
+  const tableHead = isDark ? 'bg-white/5' : 'bg-slate-100';
+  const tableRow = isDark ? 'border-t border-white/10 hover:bg-white/5' : 'border-t border-slate-200 hover:bg-slate-50';
+  const cellMuted = isDark ? 'text-gray-300' : 'text-slate-600';
 
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Leaderboards</h1>
-            <p className="text-gray-300">See who’s leading across categories and timeframes</p>
+            <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Leaderboards</h1>
+            <p className={sub}>See who’s leading across categories and timeframes</p>
           </div>
           <div className="flex gap-2 mt-4 lg:mt-0">
-            <div className="bg-white/10 rounded-xl p-2 flex">
+            <div className={`${surface} rounded-xl p-2 flex`}>
               {CATEGORIES.map((c) => {
                 const Icon = c.icon;
                 const active = c.id === category;
@@ -117,9 +130,7 @@ const LeaderboardsPage = () => {
                   <button
                     key={c.id}
                     onClick={() => setCategory(c.id)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
-                      active ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white' : 'text-gray-300 hover:bg-white/10'
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${active ? toggleActive : toggleBase}`}
                   >
                     {typeof Icon === 'function' ? <Icon /> : <UserIcon className="w-4 h-4" />}
                     {c.name}
@@ -127,16 +138,14 @@ const LeaderboardsPage = () => {
                 );
               })}
             </div>
-            <div className="bg-white/10 rounded-xl p-2 flex">
+            <div className={`${surface} rounded-xl p-2 flex`}>
               {TIMEFRAMES.map((t) => {
                 const active = t.id === timeframe;
                 return (
                   <button
                     key={t.id}
                     onClick={() => setTimeframe(t.id)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                      active ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white' : 'text-gray-300 hover:bg-white/10'
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${active ? toggleActive : toggleBase}`}
                   >
                     {t.name}
                   </button>
@@ -146,26 +155,26 @@ const LeaderboardsPage = () => {
           </div>
         </div>
 
-        {error && <div className="text-yellow-300">{error}</div>}
+        {error && <div className={isDark ? 'text-yellow-300' : 'text-amber-600'}>{error}</div>}
 
         {/* Podium */}
-        <div className="grid md:grid-cols-3 gap-4">
+  <div className="grid md:grid-cols-3 gap-4">
           {top3.map((p, i) => (
             <motion.div
               key={p.name + i}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-white/10 border border-white/20 rounded-2xl p-6 text-center"
+              className={`${pod} rounded-2xl p-6 text-center`}
             >
               <div className="text-5xl mb-3">{p.avatar}</div>
-              <div className="text-white font-bold text-xl">{p.name}</div>
-              <div className="text-gray-300 text-sm">{p.country}</div>
-              <div className="mt-3 inline-flex items-center gap-2 text-cyan-300">
+              <div className={`${heading} font-bold text-xl`}>{p.name}</div>
+              <div className={`${cellMuted} text-sm`}>{p.country}</div>
+              <div className={`mt-3 inline-flex items-center gap-2 ${isDark ? 'text-cyan-300' : 'text-emerald-600'}`}>
                 <TrophyIcon className="w-5 h-5" />
                 <span className="font-semibold">{p.score.toLocaleString()}</span>
               </div>
-              <div className="mt-2 text-sm text-gray-300 flex justify-center gap-3">
+              <div className={`mt-2 text-sm flex justify-center gap-3 ${cellMuted}`}>
                 <span className="inline-flex items-center gap-1"><FireIcon className="w-4 h-4 text-amber-400" /> {p.streak}d</span>
                 {changeBadge(p.change)}
               </div>
@@ -174,11 +183,11 @@ const LeaderboardsPage = () => {
         </div>
 
         {/* Full table */}
-        <div className="bg-white/10 border border-white/20 rounded-2xl overflow-hidden">
+        <div className={`${surface} rounded-2xl overflow-hidden`}>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-white/5">
-                <tr className="text-gray-300">
+              <thead className={tableHead}>
+                <tr className={cellMuted}>
                   <th className="py-3 px-4">Rank</th>
                   <th className="py-3 px-4">Athlete</th>
                   <th className="py-3 px-4">Country</th>
@@ -190,28 +199,28 @@ const LeaderboardsPage = () => {
               <tbody>
                 {loading ? (
                   [...Array(8)].map((_, i) => (
-                    <tr key={i} className="border-t border-white/10">
-                      <td className="py-3 px-4"><div className="h-4 w-6 bg-white/10 rounded" /></td>
-                      <td className="py-3 px-4"><div className="h-4 w-40 bg-white/10 rounded" /></td>
-                      <td className="py-3 px-4"><div className="h-4 w-12 bg-white/10 rounded" /></td>
-                      <td className="py-3 px-4"><div className="h-4 w-12 bg-white/10 rounded" /></td>
-                      <td className="py-3 px-4"><div className="h-4 w-10 bg-white/10 rounded" /></td>
-                      <td className="py-3 px-4"><div className="h-4 w-10 bg-white/10 rounded" /></td>
+                    <tr key={i} className={tableRow}>
+                      <td className="py-3 px-4"><div className={`h-4 w-6 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
+                      <td className="py-3 px-4"><div className={`h-4 w-40 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
+                      <td className="py-3 px-4"><div className={`h-4 w-12 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
+                      <td className="py-3 px-4"><div className={`h-4 w-12 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
+                      <td className="py-3 px-4"><div className={`h-4 w-10 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
+                      <td className="py-3 px-4"><div className={`h-4 w-10 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
                     </tr>
                   ))
                 ) : (
                   rows.map((r) => (
-                    <tr key={r.rank + r.name} className="border-t border-white/10 hover:bg-white/5">
-                      <td className="py-3 px-4 text-white font-semibold">{r.rank}</td>
+                    <tr key={r.rank + r.name} className={tableRow}>
+                      <td className={`py-3 px-4 font-semibold ${heading}`}>{r.rank}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="text-2xl">{r.avatar}</div>
-                          <div className="text-white">{r.name}</div>
+                          <div className={heading}>{r.name}</div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-gray-300">{r.country}</td>
-                      <td className="py-3 px-4 text-white font-semibold">{r.score.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-gray-300">{r.streak} days</td>
+                      <td className={`py-3 px-4 ${cellMuted}`}>{r.country}</td>
+                      <td className={`py-3 px-4 font-semibold ${heading}`}>{r.score.toLocaleString()}</td>
+                      <td className={`py-3 px-4 ${cellMuted}`}>{r.streak} days</td>
                       <td className="py-3 px-4">{changeBadge(r.change)}</td>
                     </tr>
                   ))
@@ -221,7 +230,7 @@ const LeaderboardsPage = () => {
           </div>
         </div>
 
-        <div className="text-sm text-gray-400 flex items-center gap-2">
+        <div className={`text-sm flex items-center gap-2 ${cellMuted}`}>
           <GlobeAltIcon className="w-4 h-4" />
           Leaderboards are refreshed periodically. Live rankings may differ slightly.
         </div>

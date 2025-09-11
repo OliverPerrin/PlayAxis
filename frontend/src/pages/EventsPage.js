@@ -32,49 +32,58 @@ const EventsPage = () => {
     return () => { mounted = false; };
   }, [q]);
 
+  // Light/Dark adaptive styles similar to HomePage
+  const surface = isDark ? 'bg-white/10 border border-white/20 hover:bg-white/15' : 'bg-white border border-slate-200 hover:bg-slate-50';
+  const inputCls = isDark
+    ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-cyan-500'
+    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-emerald-500';
+  const heading = isDark ? 'text-white' : 'text-slate-900';
+  const subText = isDark ? 'text-gray-300' : 'text-slate-600';
+  const muted = isDark ? 'text-gray-400' : 'text-slate-500';
+
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-5xl mx-auto">
         <div className="mb-6 flex items-center gap-3">
           <div className="relative flex-1">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <MagnifyingGlassIcon className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${muted}`} />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search events..."
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-cyan-500"
+              className={`w-full pl-10 pr-4 py-3 rounded-xl outline-none transition ${inputCls}`}
             />
           </div>
         </div>
 
         {loading ? (
-          <div className="text-gray-300">Loading...</div>
+          <div className={subText}>Loading...</div>
         ) : (
           <div className="space-y-4">
             {events.map(ev => (
               <div
-        key={ev.id}
-        onClick={() => navigate(`/events/${encodeURIComponent(ev.id)}`, { state: { event: ev } })}
-                className="bg-white/10 border border-white/20 rounded-xl p-4 hover:bg-white/15 cursor-pointer"
+                key={ev.id}
+                onClick={() => navigate(`/events/${encodeURIComponent(ev.id)}`, { state: { event: ev } })}
+                className={`${surface} rounded-xl p-4 cursor-pointer transition-colors`}
               >
-        <div className="text-white font-semibold text-lg">{ev.title}</div>
-                <div className="flex items-center gap-4 text-sm text-gray-300 mt-1">
+                <div className={`font-semibold text-lg ${heading}`}>{ev.title}</div>
+                <div className={`flex items-center gap-4 text-sm mt-1 ${subText}`}>
                   <div className="flex items-center gap-1">
                     <CalendarIcon className="w-4 h-4" />
-          <span>{ev.start ? new Date(ev.start).toLocaleString() : 'TBA'}</span>
+                    <span>{ev.start ? new Date(ev.start).toLocaleString() : 'TBA'}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <MapPinIcon className="w-4 h-4" />
-          <span>{ev.venue}</span>
+                    <span>{ev.venue}</span>
                   </div>
                 </div>
                 {ev.description && (
-                  <p className="text-gray-300 text-sm mt-2 line-clamp-2">{ev.description}</p>
+                  <p className={`text-sm mt-2 line-clamp-2 ${subText}`}>{ev.description}</p>
                 )}
               </div>
             ))}
             {events.length === 0 && (
-              <div className="text-gray-400">No events found for “{q}”.</div>
+              <div className={muted}>No events found for “{q}”.</div>
             )}
           </div>
         )}
