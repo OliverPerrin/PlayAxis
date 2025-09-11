@@ -44,7 +44,7 @@ const SettingsPage = () => {
                 { title: 'About', desc: 'Learn what PlayAxis is building', to: '/about' },
                 { title: 'Privacy', desc: 'How we handle your data', to: '/privacy' },
                 { title: 'Terms', desc: 'Usage rules & responsibilities', to: '/terms' },
-                { title: 'Contact', desc: 'Reach the team', to: '/contact' }
+                { title: 'Contact', desc: 'Reach the developer', to: '/contact' }
               ].map(card => (
                 <button
                   key={card.to}
