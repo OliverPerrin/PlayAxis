@@ -26,7 +26,13 @@ const Footer = () => {
           <Link to="/terms" className={`${subText} ${hoverLink} transition`}>Terms</Link>
           <Link to="/contact" className={`${subText} ${hoverLink} transition`}>Contact</Link>
         </div>
-        <div className={`text-sm ${subText} text-left sm:text-right`}>Built for athletes of every level.</div>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className={`text-sm ${subText} text-left sm:text-right`}>Built for athletes of every level.</div>
+          <div className="flex gap-3 text-xs">
+            <a href="https://github.com/OliverPerrin" target="_blank" rel="noopener noreferrer" className={`${subText} ${hoverLink} transition underline-offset-4 hover:underline`}>GitHub</a>
+            <a href="https://www.linkedin.com/in/oliverperrin/" target="_blank" rel="noopener noreferrer" className={`${subText} ${hoverLink} transition underline-offset-4 hover:underline`}>LinkedIn</a>
+          </div>
+        </div>
       </div>
     </footer>
   );

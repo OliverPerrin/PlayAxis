@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     TWITCH_API_URL: str = "https://api.twitch.tv/helix/"
     SPORTSBOOK_API_URL: str = "https://sportsradar-sportsbook-api.p.rapidapi.com"
 
+    # Contact / Email (optional)
+    CONTACT_RECIPIENT_EMAIL: str | None = None
+    CONTACT_SENDER_EMAIL: str | None = None
+    CONTACT_SENDER_PASSWORD: str | None = None
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int | None = None
+
     # Database
     DATABASE_URL: str
 
