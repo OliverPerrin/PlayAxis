@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
 import { ThemeContext } from '../../contexts/ThemeContext';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
   const { theme } = useContext(ThemeContext);
@@ -20,10 +21,10 @@ const Footer = () => {
           <span className={`text-sm ${copyText}`}>© {new Date().getFullYear()} PlayAxis</span>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-xs font-medium tracking-wide uppercase">
-          <a href="/about" className={`${subText} ${hoverLink} transition`}>About</a>
-          <a href="/privacy" className={`${subText} ${hoverLink} transition`}>Privacy</a>
-          <a href="/terms" className={`${subText} ${hoverLink} transition`}>Terms</a>
-          <a href="/contact" className={`${subText} ${hoverLink} transition`}>Contact</a>
+          <Link to="/about" className={`${subText} ${hoverLink} transition`}>About</Link>
+          <Link to="/privacy" className={`${subText} ${hoverLink} transition`}>Privacy</Link>
+          <Link to="/terms" className={`${subText} ${hoverLink} transition`}>Terms</Link>
+          <Link to="/contact" className={`${subText} ${hoverLink} transition`}>Contact</Link>
         </div>
         <div className={`text-sm ${subText} text-left sm:text-right`}>Built for athletes of every level.</div>
       </div>

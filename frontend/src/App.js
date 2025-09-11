@@ -12,6 +12,10 @@ import LoadingScreen from './components/common/LoadingScreen';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import DiscoverPage from './pages/DiscoverPage';
+import AboutPage from './pages/AboutPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import ContactPage from './pages/ContactPage';
 import EventsPage from './pages/EventsPage';
 import EventDetailPage from './pages/EventDetailPage';
 import MyStatsPage from './pages/MyStatsPage';
@@ -74,7 +78,11 @@ function AppContent() {
       if (p === '/mystats') return 'My Stats';
       if (p === '/compare') return 'Compare';
       if (p === '/community') return 'Community';
-      if (p === '/settings') return 'Settings';
+  if (p === '/settings') return 'Settings';
+  if (p === '/about') return 'About';
+  if (p === '/privacy') return 'Privacy';
+  if (p === '/terms') return 'Terms';
+  if (p === '/contact') return 'Contact';
       if (p === '/profile') return 'Profile';
       if (p === '/log-workout') return 'Log Workout';
       if (p === '/landing') return 'Welcome';
@@ -143,6 +151,10 @@ function AppContent() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/log-workout" element={<LogWorkoutPage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/contact" element={<ContactPage />} />
               </>
             ) : (
               <>
@@ -158,6 +170,10 @@ function AppContent() {
                 <Route path="/settings" element={<Navigate to="/landing" replace />} />
                 <Route path="/profile" element={<Navigate to="/landing" replace />} />
                 <Route path="/log-workout" element={<Navigate to="/landing" replace />} />
+                <Route path="/about" element={<Navigate to="/landing" replace />} />
+                <Route path="/privacy" element={<Navigate to="/landing" replace />} />
+                <Route path="/terms" element={<Navigate to="/landing" replace />} />
+                <Route path="/contact" element={<Navigate to="/landing" replace />} />
               </>
             )}
 
