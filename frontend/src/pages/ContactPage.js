@@ -1,6 +1,5 @@
 import React, { useContext, useState } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
-import { API_URL_OVERRIDE } from '../utils/constants';
 
 // Simple helper to resolve API base (reuse logic if needed)
 const getApiBase = () => {
