@@ -1,6 +1,7 @@
 import httpx
 import logging
 from typing import List, Optional, Tuple
+import urllib.parse
 from datetime import datetime, timedelta
 import re
 from app.core.config import settings
@@ -101,6 +102,41 @@ async def _enrich_lat_lon(event_location_map: dict) -> Tuple[Optional[float], Op
     latlon = await cache.get_or_set(cache_key, 3600, producer)  # cache 1 hour
     return latlon
 
+async def _geocode_address(address_text: str) -> Tuple[Optional[float], Optional[float]]:
+    """Fallback geocoding using OpenStreetMap Nominatim for events without event_location_map.
+    Cached aggressively to avoid repeated external calls. Returns (lat, lon) or (None, None).
+    """
+    if not address_text:
+        return None, None
+    cache_key = f"geocode:{address_text.lower()}"
+
+    async def producer():
+        try:
+            params = {
+                "q": address_text,
+                "format": "json",
+                "limit": 1,
+            }
+            url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(params)
+            headers = {"User-Agent": "PlayAxisEvents/1.0 (contact: support@playaxis.local)"}
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get(url, headers=headers)
+                if r.status_code != 200:
+                    return (None, None)
+                js = r.json()
+                if isinstance(js, list) and js:
+                    try:
+                        lat = float(js[0].get("lat"))
+                        lon = float(js[0].get("lon"))
+                        return (lat, lon)
+                    except Exception:
+                        return (None, None)
+        except Exception:
+            return (None, None)
+        return (None, None)
+
+    return await cache.get_or_set(cache_key, 86400, producer)  # cache 24h
+
 async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = None, gl: Optional[str] = None, htichips: Optional[str] = None) -> List[Event]:
     """Fetch events using SerpApi Google Events engine and normalize into Event models.
 
@@ -160,6 +196,9 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
                     city = last
 
             venue_obj = ev.get("venue") or {}
+            venue_name = venue_obj.get("name")
+            if not venue_name and address_lines:
+                venue_name = address_lines[0]
             # Dates: attempt parsing 'when'; fallback to original text.
             date_obj = ev.get("date") or {}
             when_text = date_obj.get("when") or date_obj.get("start_date")
@@ -170,6 +209,12 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
             lon = None
             if ev.get('event_location_map'):
                 lat, lon = await _enrich_lat_lon(ev.get('event_location_map'))
+            # Fallback geocode if still missing
+            if (lat is None or lon is None) and address_lines:
+                joined_addr = ", ".join(address_lines)
+                g_lat, g_lon = await _geocode_address(joined_addr)
+                if g_lat is not None and g_lon is not None:
+                    lat, lon = g_lat, g_lon
 
             out.append(Event(
                 id=ev.get("link") or ev.get("title"),
@@ -180,7 +225,7 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
                 start=start_iso or when_text,
                 end=end_iso,
                 timezone=None,
-                venue=venue_obj.get("name"),
+                venue=venue_name,
                 city=city,
                 country=country,
                 latitude=lat,

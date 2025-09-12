@@ -68,7 +68,7 @@ const normalizeEventItem = (e, idx=0) => {
   const title = e.name || e.title || e?.name?.text || 'Untitled Event';
   const start = e.start || e?.start_time || e?.start?.local || e?.date || null;
   const end = e.end || e?.end_time || e?.end?.local || null;
-  const venueName = e.venue || e?.venue?.name || e?.location || 'Location TBA';
+  const venueName = e.venue || e?.venue?.name || e?.location || [e.city, e.country].filter(Boolean).join(', ') || 'Location TBA';
   return {
     id: String(e.id ?? e.event_id ?? `${idx}-${title}`),
   source: e.source || 'google',
