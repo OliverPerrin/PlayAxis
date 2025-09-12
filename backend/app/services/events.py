@@ -3,7 +3,7 @@ from typing import List
 import hashlib
 import json
 from app.schemas.event import Event, EventsResponse
-from app.services.eventbrite import fetch_eventbrite_events
+from app.services.google_events import fetch_google_events
 from app.core.cache import cache
 
 EVENTS_CACHE_TTL = 180  # seconds
@@ -29,7 +29,9 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
 
     async def producer():
         safe_query = (query or '').strip()
-        events: List[Event] = await fetch_eventbrite_events(query=safe_query, page=page, size=limit)
+        # We construct a Google query. If user query already contains a location hint, keep it; else default.
+        google_query = safe_query or 'Events near me'
+        events: List[Event] = await fetch_google_events(query=google_query, start=(page - 1) * 10)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
             events = [e for e in events if (

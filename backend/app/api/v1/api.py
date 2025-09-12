@@ -8,8 +8,6 @@ from .endpoints.weather import router as weather_router
 from .endpoints.streams import router as streams_router
 from .endpoints.aggregate import router as aggregate_router
 from .endpoints.leaderboards import router as leaderboards_router
-from .endpoints.eventbrite_oauth import router as eventbrite_oauth_router
-from .endpoints.eventbrite_debug import router as eventbrite_debug_router
 from .endpoints.contact import router as contact_router
 
 api_router = APIRouter()
@@ -21,6 +19,4 @@ api_router.include_router(weather_router, prefix="/weather", tags=["weather"])
 api_router.include_router(streams_router, prefix="/streams", tags=["streams"])
 api_router.include_router(aggregate_router, prefix="/aggregate", tags=["aggregate"])
 api_router.include_router(leaderboards_router, prefix="/leaderboards", tags=["leaderboards"])
-api_router.include_router(eventbrite_oauth_router, prefix="/eventbrite", tags=["eventbrite"])
-api_router.include_router(eventbrite_debug_router, prefix="/eventbrite", tags=["eventbrite-debug"])
 api_router.include_router(contact_router, prefix="/contact", tags=["contact"])

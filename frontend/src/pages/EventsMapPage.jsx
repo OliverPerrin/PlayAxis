@@ -105,7 +105,7 @@ export default function EventsMapPage() {
         <div className="p-3 flex gap-2">
           <input
             className="border rounded px-3 py-2 w-full"
-            placeholder="Search events (e.g. Formula 1, skiing, trail running)"
+            placeholder="Search events (e.g. concerts in Austin, festivals in Chicago)"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && load()}

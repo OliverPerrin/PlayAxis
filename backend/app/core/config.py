@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     EVENTBRITE_OAUTH_TOKEN_URL: str = "https://www.eventbrite.com/oauth/token"
     EVENTBRITE_REDIRECT_URI: str | None = None
 
+    # SerpApi / Google Events
+    SERPAPI_API_KEY: str | None = None
+    GOOGLE_EVENTS_HL: str = "en"  # language
+    GOOGLE_EVENTS_GL: str = "us"  # country
+
     # API URLs
     EVENTBRITE_API_URL: str = "https://www.eventbriteapi.com/v3"
     WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
