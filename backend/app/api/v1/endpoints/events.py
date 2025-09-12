@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.services.events import aggregate_events
-from app.schemas.event import EventsResponse
+from app.schemas.event import EventsResponse, compute_viewport
 
 router = APIRouter()
 
@@ -8,10 +8,16 @@ router = APIRouter()
 async def list_events_slash(
     q: str = Query(""),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=50)
+    limit: int = Query(20, ge=1, le=50),
+    min_lat: float | None = None,
+    max_lat: float | None = None,
+    min_lon: float | None = None,
+    max_lon: float | None = None,
 ):
     try:
-        return await aggregate_events(query=q, page=page, limit=limit)
+        return await aggregate_events(query=q, page=page, limit=limit,
+                                      min_lat=min_lat, max_lat=max_lat,
+                                      min_lon=min_lon, max_lon=max_lon)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Events fetch failed: {e}")
 
@@ -19,6 +25,32 @@ async def list_events_slash(
 async def list_events_no_slash(
     q: str = Query(""),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=50)
+    limit: int = Query(20, ge=1, le=50),
+    min_lat: float | None = None,
+    max_lat: float | None = None,
+    min_lon: float | None = None,
+    max_lon: float | None = None,
 ):
-    return await list_events_slash(q=q, page=page, limit=limit)
+    return await list_events_slash(q=q, page=page, limit=limit,
+                                   min_lat=min_lat, max_lat=max_lat,
+                                   min_lon=min_lon, max_lon=max_lon)
+
+
+@router.get("/viewport")
+async def list_events_with_viewport(
+    q: str = Query(""),
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=200),
+    min_lat: float | None = None,
+    max_lat: float | None = None,
+    min_lon: float | None = None,
+    max_lon: float | None = None,
+):
+    """Return events plus a computed viewport bounding box for mapping.
+    Not using a response_model to allow dynamic viewport dict.
+    """
+    resp = await aggregate_events(query=q, page=page, limit=limit,
+                                  min_lat=min_lat, max_lat=max_lat,
+                                  min_lon=min_lon, max_lon=max_lon)
+    vp = compute_viewport(resp.data)
+    return {"total": resp.total, "viewport": vp, "events": [e.model_dump() for e in resp.data]}

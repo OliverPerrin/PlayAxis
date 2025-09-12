@@ -114,12 +114,53 @@ async def get_eventbrite_events(query: str,
 
 
 # ---- New code below: normalization + wrapper ----
-from app.schemas.event import Event  # imported here to avoid circulars
+from app.schemas.event import Event, TicketClass  # imported here to avoid circulars
 
 def _normalize_eventbrite_event(raw: dict) -> Event | None:
     try:
         venue = raw.get("venue") or {}
         address = venue.get("address") or {}
+        category = (raw.get("category") or {}).get("short_name")
+        subcategory = (raw.get("subcategory") or {}).get("short_name")
+        organizer = (raw.get("organizer") or {}).get("name")
+        capacity = raw.get("capacity")
+
+        # Ticket classes (expanded via ticket_availability or dedicated endpoint)
+        ticket_classes_raw = raw.get("ticket_classes") or []
+        ticket_classes: list[TicketClass] = []
+        min_price: float | None = None
+        max_price: float | None = None
+        currency: str | None = None
+        for tc in ticket_classes_raw:
+            try:
+                cost = tc.get("cost") or {}
+                value = cost.get("value")  # minor units
+                major = None
+                if isinstance(value, int):
+                    major = value / 100.0
+                currency = currency or cost.get("currency")
+                if major is not None:
+                    if min_price is None or major < min_price:
+                        min_price = major
+                    if max_price is None or major > max_price:
+                        max_price = major
+                ticket_classes.append(TicketClass(
+                    id=str(tc.get("id")) if tc.get("id") else None,
+                    name=tc.get("name"),
+                    free=tc.get("free"),
+                    donation=tc.get("donation"),
+                    on_sale_status=tc.get("on_sale_status"),
+                    quantity_total=tc.get("quantity_total"),
+                    quantity_sold=tc.get("quantity_sold"),
+                    cost_value=value,
+                    cost_major=major,
+                    currency=cost.get("currency"),
+                ))
+            except Exception:
+                continue
+
+        basic_inventory = raw.get("basic_inventory_info") or {}
+        is_tiered = basic_inventory.get("has_admission_tiers")
         return Event(
             id=str(raw.get("id")),
             source="eventbrite",
@@ -134,9 +175,17 @@ def _normalize_eventbrite_event(raw: dict) -> Event | None:
             country=address.get("country"),
             latitude=venue.get("latitude"),
             longitude=venue.get("longitude"),
-            category=(raw.get("category") or {}).get("short_name"),
+            category=category,
+            subcategory=subcategory,
             image=(raw.get("logo") or {}).get("url"),
             price=None,  # Could augment later
+            capacity=capacity,
+            organizer=organizer,
+            is_tiered=is_tiered,
+            min_price=min_price,
+            max_price=max_price,
+            currency=currency,
+            ticket_classes=ticket_classes or None,
         )
     except Exception as e:
         logger.debug(f"Failed to normalize eventbrite event id={raw.get('id')} err={e}")
@@ -161,6 +210,44 @@ async def fetch_eventbrite_events(query: str = "sports",
     if size:
         out = out[:size]
     return out
+
+
+async def fetch_eventbrite_event_detail(event_id: str, token: str | None = None) -> dict | None:
+    """Fetch a single event with expansions for capacity, organizer, ticket classes and inventory info."""
+    token = token or settings.EVENTBRITE_PRIVATE_TOKEN or settings.EVENTBRITE_PUBLIC_TOKEN
+    if not token:
+        return None
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    base = settings.EVENTBRITE_API_URL.rstrip("/")
+    params = {"expand": "venue,category,subcategory,organizer,ticket_classes,basic_inventory_info"}
+    url = f"{base}/events/{event_id}/"
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.get(url, headers=headers, params=params)
+        if r.status_code != 200:
+            logger.warning("Eventbrite detail fetch failed %s body=%s", r.status_code, r.text[:160])
+            return None
+        data = r.json()
+        return data
+
+
+async def fetch_eventbrite_inventory_tiers(event_id: str, token: str | None = None) -> list[dict] | None:
+    """List inventory tiers for an event (if tiered)."""
+    token = token or settings.EVENTBRITE_PRIVATE_TOKEN or settings.EVENTBRITE_PUBLIC_TOKEN
+    if not token:
+        return None
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    base = settings.EVENTBRITE_API_URL.rstrip("/")
+    url = f"{base}/events/{event_id}/inventory_tiers/"
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.get(url, headers=headers)
+        if r.status_code != 200:
+            logger.info("Eventbrite inventory tiers fetch status=%s body=%s", r.status_code, r.text[:160])
+            return None
+        data = r.json()
+        # Endpoint returns {inventory_tiers: [...]} according to docs
+        if isinstance(data, dict):
+            return data.get("inventory_tiers") or []
+        return None
 
 # ---- OAuth helpers ----
 async def exchange_eventbrite_code(code: str, redirect_uri: str | None = None) -> dict:

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvent } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getMe } from '../api';
 
@@ -12,17 +12,19 @@ const API_BASE = (() => {
   return 'https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/v1';
 })();
 
-const fetchAggregate = async ({ q, lat, lon }) => {
+const fetchViewportEvents = async ({ q, bbox }) => {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
-  if (lat != null && lon != null) {
-    params.set('lat', lat);
-    params.set('lon', lon);
+  if (bbox) {
+    params.set('min_lat', bbox.min_lat);
+    params.set('max_lat', bbox.max_lat);
+    params.set('min_lon', bbox.min_lon);
+    params.set('max_lon', bbox.max_lon);
   }
   const headers = { 'Accept': 'application/json' };
   const token = localStorage.getItem('token');
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/aggregate/events?${params.toString()}`, { headers });
+  const res = await fetch(`${API_BASE}/events/viewport?${params.toString()}`, { headers });
   if (!res.ok) throw new Error('Failed to load events');
   return res.json();
 };
@@ -48,6 +50,20 @@ const Recenter = ({ lat, lon }) => {
   return null;
 };
 
+const ViewportWatcher = ({ onChange }) => {
+  const map = useMapEvent('moveend', () => {
+    const b = map.getBounds();
+    const bbox = {
+      min_lat: b.getSouth(),
+      max_lat: b.getNorth(),
+      min_lon: b.getWest(),
+      max_lon: b.getEast(),
+    };
+    onChange(bbox);
+  });
+  return null;
+};
+
 export default function EventsMapPage() {
   const me = useGeolocation();
   const [loading, setLoading] = useState(true);
@@ -57,10 +73,12 @@ export default function EventsMapPage() {
 
   const center = useMemo(() => [me.lat, me.lon], [me.lat, me.lon]);
 
-  const load = async () => {
+  const [bbox, setBbox] = useState(null);
+
+  const load = useCallback(async (opts = {}) => {
     try {
       setLoading(true);
-      const data = await fetchAggregate({ q: query, lat: me.ok ? me.lat : undefined, lon: me.ok ? me.lon : undefined });
+      const data = await fetchViewportEvents({ q: query, bbox: opts.bbox || bbox });
       setEvents(data.events || []);
       setError(null);
     } catch (e) {
@@ -68,9 +86,18 @@ export default function EventsMapPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query, bbox]);
 
+  // Initial load once geolocation known or after slight delay
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [me.ok]);
+
+  const handleViewportChange = useCallback((nextBbox) => {
+    setBbox(nextBbox);
+    // Debounce lightly using setTimeout
+    setTimeout(() => {
+      load({ bbox: nextBbox });
+    }, 150);
+  }, [load]);
 
   return (
     <div className="flex h-[calc(100vh-64px)]">
@@ -107,6 +134,7 @@ export default function EventsMapPage() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <Recenter lat={me.ok ? me.lat : null} lon={me.ok ? me.lon : null} />
+          <ViewportWatcher onChange={handleViewportChange} />
           {(events || [])
             .filter(e => e.latitude != null && e.longitude != null)
             .map(e => (

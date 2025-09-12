@@ -121,6 +121,28 @@ export const getEvents = async (query = '', lat = null, lon = null, extra = {}) 
   }
 };
 
+export const getEventsInViewport = async (query = '', bbox = null) => {
+  // bbox: {min_lat, max_lat, min_lon, max_lon}
+  const q = encodeURIComponent(query || '');
+  let url = `${API_URL}/events/viewport?q=${q}`;
+  if (bbox && Object.values(bbox).every(v => typeof v === 'number')) {
+    url += `&min_lat=${bbox.min_lat}&max_lat=${bbox.max_lat}&min_lon=${bbox.min_lon}&max_lon=${bbox.max_lon}`;
+  }
+  try {
+    const res = await fetchWithTimeout(url, { method: 'GET', headers: getAuthHeaders() });
+    const data = await handleResponse(res);
+    const eventsArr = Array.isArray(data?.events) ? data.events : [];
+    return {
+      viewport: data.viewport || {},
+      total: data.total || eventsArr.length,
+      events: eventsArr.map((e,i) => normalizeEventItem(e,i)),
+    };
+  } catch (err) {
+    console.error('getEventsInViewport error', err);
+    return { viewport: {}, events: [], total: 0 };
+  }
+};
+
 export const getEventById = async (id) => {
   try {
     // Backend likely expects /events/{id}
