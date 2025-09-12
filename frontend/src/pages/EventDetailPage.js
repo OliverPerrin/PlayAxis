@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, UserGroupIcon, ArrowLeftIcon, StarIcon } from '@heroicons/react/24/outline';
 import { getEventById } from '../api';
@@ -111,10 +111,9 @@ const EventDetailPage = () => {
     );
   }
 
-  const processed = useMemo(() => extractMediaFromDescription(event.description), [event.description]);
-
-  // Use extracted image if original is just an emoji or very short token
-  const showImageUrl = processed.imageUrl && (event.image?.length <= 3);
+  // Safe to compute directly (was previously useMemo, but removed to avoid conditional hook order issues)
+  const processed = extractMediaFromDescription(event?.description);
+  const showImageUrl = processed.imageUrl && (event?.image?.length <= 3);
 
   return (
     <div className="p-6">
