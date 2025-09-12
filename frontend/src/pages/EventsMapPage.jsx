@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useContext } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvent } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getMe } from '../api';
+import { ThemeContext } from '../contexts/ThemeContext';
 
 // Use the same base as the rest of the app through the proxy
 const API_BASE = (() => {
@@ -65,6 +66,8 @@ const ViewportWatcher = ({ onChange }) => {
 };
 
 export default function EventsMapPage() {
+  const { theme } = useContext(ThemeContext);
+  const isDark = theme === 'dark';
   const me = useGeolocation();
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
@@ -102,25 +105,39 @@ export default function EventsMapPage() {
   return (
     <div className="flex h-[calc(100vh-64px)]">
       <div className="w-full md:w-1/2 h-full">
-        <div className="p-3 flex gap-2">
+        <div className="p-3 flex gap-2 border-b border-slate-200 dark:border-white/10">
           <input
-            className="border rounded px-3 py-2 w-full"
+            className={`rounded px-3 py-2 w-full outline-none transition text-sm ${isDark ? 'bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:border-cyan-400' : 'bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:border-emerald-500'}`}
             placeholder="Search events (e.g. concerts in Austin, festivals in Chicago)"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && load()}
           />
-          <button onClick={load} className="px-4 py-2 bg-blue-600 text-white rounded">Search</button>
+          <button onClick={load} className={`px-4 py-2 rounded text-sm font-medium shadow-sm transition ${isDark ? 'bg-gradient-to-r from-cyan-600 to-emerald-600 text-white hover:from-cyan-500 hover:to-emerald-500' : 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white hover:from-emerald-500 hover:to-cyan-500'}`}>Search</button>
         </div>
-        <div className="overflow-y-auto h-[calc(100%-56px)] p-3">
-          {loading ? <p>Loading…</p> : error ? <p className="text-red-600">{error}</p> : (
-            <ul className="divide-y">
+        <div className="overflow-y-auto h-[calc(100%-56px)] p-0">
+          {loading ? (
+            <p className={`px-4 py-4 text-sm ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>Loading…</p>
+          ) : error ? (
+            <p className="px-4 py-4 text-sm text-red-600">{error}</p>
+          ) : (
+            <ul className="divide-y divide-slate-200 dark:divide-white/10">
               {(events || []).map((e) => (
-                <li key={e.id} className="py-3">
-                  <div className="font-semibold">{e.name || e.title || '(no title)'} <span className="text-xs text-gray-500">[{e.source}]</span></div>
-                  {e.start && <div className="text-sm text-gray-600">{new Date(e.start).toLocaleString()}</div>}
-                  {(e.city || e.country) && <div className="text-sm text-gray-600">{[e.city, e.country].filter(Boolean).join(', ')}</div>}
-                  {e.url && <a className="text-blue-600 text-sm" href={e.url} target="_blank" rel="noreferrer">Details</a>}
+                <li
+                  key={e.id}
+                  className={`p-4 text-sm cursor-pointer group transition relative ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}
+                  onClick={() => {
+                    const lat = e.latitude, lon = e.longitude;
+                    if (lat != null && lon != null) {
+                      // optional: could pan map via custom event or context
+                    }
+                  }}
+                >
+                  <div className={`font-medium mb-1 leading-snug break-words ${isDark ? 'text-white group-hover:text-cyan-300' : 'text-slate-900 group-hover:text-emerald-600'}`}>{e.name || e.title || '(no title)'}</div>
+                  {e.start && <div className={`mb-1 ${isDark ? 'text-gray-400' : 'text-slate-600'}`}>{new Date(e.start).toLocaleString()}</div>}
+                  {(e.city || e.country) && <div className={`${isDark ? 'text-gray-500' : 'text-slate-500'}`}>{[e.city, e.country].filter(Boolean).join(', ')}</div>}
+                  {e.url && <a className={`mt-1 inline-block truncate max-w-full ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-emerald-600 hover:text-emerald-500'}`} href={e.url} target="_blank" rel="noreferrer">Details</a>}
+                  <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 ring-1 ring-emerald-500/40 rounded" />
                 </li>
               ))}
             </ul>
@@ -140,11 +157,11 @@ export default function EventsMapPage() {
             .map(e => (
               <Marker key={e.id} position={[e.latitude, e.longitude]}>
                 <Popup>
-                  <div className="space-y-1">
-                    <div className="font-semibold">{e.name || e.title || '(no title)'}</div>
-                    {e.start && <div className="text-sm">{new Date(e.start).toLocaleString()}</div>}
-                    {(e.city || e.country) && <div className="text-sm text-gray-600">{[e.city, e.country].filter(Boolean).join(', ')}</div>}
-                    {e.url && <a className="text-blue-600 text-sm" href={e.url} target="_blank" rel="noreferrer">Open</a>}
+                  <div className="space-y-1 text-sm">
+                    <div className={`font-semibold mb-1 ${isDark ? 'text-slate-900' : 'text-slate-900'}`}>{e.name || e.title || '(no title)'}</div>
+                    {e.start && <div className="text-xs text-slate-600">{new Date(e.start).toLocaleString()}</div>}
+                    {(e.city || e.country) && <div className="text-xs text-slate-600">{[e.city, e.country].filter(Boolean).join(', ')}</div>}
+                    {e.url && <a className="text-xs text-emerald-600 hover:underline" href={e.url} target="_blank" rel="noreferrer">Open</a>}
                   </div>
                 </Popup>
               </Marker>

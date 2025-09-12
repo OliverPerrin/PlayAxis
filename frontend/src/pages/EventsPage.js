@@ -33,7 +33,9 @@ const EventsPage = () => {
   }, [q]);
 
   // Light/Dark adaptive styles similar to HomePage
-  const surface = isDark ? 'bg-white/10 border border-white/20 hover:bg-white/15' : 'bg-white border border-slate-200 hover:bg-slate-50';
+  const surface = isDark
+    ? 'bg-white/10 border border-white/15 hover:border-cyan-400/40 hover:bg-white/15'
+    : 'bg-white/90 backdrop-blur-sm border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300';
   const inputCls = isDark
     ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-cyan-500'
     : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-emerald-500';
@@ -82,10 +84,17 @@ const EventsPage = () => {
               <div
                 key={ev.id}
                 onClick={() => navigate(`/events/${encodeURIComponent(ev.id)}`, { state: { event: ev } })}
-                className={`${surface} rounded-xl p-4 cursor-pointer transition-colors`}
+                className={`${surface} rounded-xl p-5 cursor-pointer transition-colors group relative overflow-hidden`}
               >
-                <div className={`font-semibold text-lg ${heading}`}>{ev.title}</div>
-                <div className={`flex items-center gap-4 text-sm mt-1 ${subText}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className={`font-semibold text-lg leading-snug break-words ${heading} group-hover:text-emerald-500 transition-colors`}>{ev.title}</div>
+                  {ev.image && (
+                    <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden hidden sm:block bg-slate-200/20 flex items-center justify-center">
+                      <img src={ev.image} alt="thumb" className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  )}
+                </div>
+                <div className={`flex flex-wrap gap-x-6 gap-y-2 text-xs mt-2 ${subText}`}>
                   <div className="flex items-center gap-1">
                     <CalendarIcon className="w-4 h-4" />
                     <span>{ev.start ? new Date(ev.start).toLocaleString() : 'TBA'}</span>
@@ -95,32 +104,36 @@ const EventsPage = () => {
                     <span>{ev.venue}</span>
                   </div>
                 </div>
-                {ev.description && (
-                  isLikelyUrlOnly(ev.description) ? (
+                <div className="mt-3 space-y-2">
+                  {ev.description && (
+                    isLikelyUrlOnly(ev.description) ? (
+                      <a
+                        href={ev.description}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={`text-sm inline-block max-w-full break-words underline decoration-dotted underline-offset-2 ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-emerald-600 hover:text-emerald-500'}`}
+                      >
+                        {formatUrlDisplay(ev.description)}
+                      </a>
+                    ) : (
+                      <p className={`text-sm leading-relaxed line-clamp-3 break-words ${subText}`}>{ev.description}</p>
+                    )
+                  )}
+                  {ev.url && !isLikelyUrlOnly(ev.description) && (
                     <a
-                      href={ev.description}
+                      href={ev.url}
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className={`text-sm mt-2 inline-block max-w-full break-words underline ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-blue-600 hover:text-blue-500'}`}
+                      className={`text-xs inline-block max-w-full truncate hover:underline ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-emerald-600 hover:text-emerald-500'}`}
+                      title={ev.url}
                     >
-                      {formatUrlDisplay(ev.description)}
+                      {formatUrlDisplay(ev.url)}
                     </a>
-                  ) : (
-                    <p className={`text-sm mt-2 line-clamp-2 break-words ${subText}`}>{ev.description}</p>
-                  )
-                )}
-                {ev.url && !isLikelyUrlOnly(ev.description) && (
-                  <a
-                    href={ev.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className={`text-xs mt-2 inline-block max-w-full break-all underline ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-blue-600 hover:text-blue-500'}`}
-                  >
-                    {formatUrlDisplay(ev.url)}
-                  </a>
-                )}
+                  )}
+                </div>
+                <div className="absolute inset-0 pointer-events-none rounded-xl ring-1 opacity-0 group-hover:opacity-100 transition-all duration-300 ring-emerald-500/40" />
               </div>
             ))}
             {events.length === 0 && (
