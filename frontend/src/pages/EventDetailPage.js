@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, UserGroupIcon, ArrowLeftIcon, StarIcon } from '@heroicons/react/24/outline';
 import { getEventById } from '../api';
@@ -32,6 +32,38 @@ const normalizeEvent = (e, fallback) => {
     organizer: e?.organizer || e?.organization_id || fallback?.organizer || 'Organizer',
     image: e?.image || fallback?.image || '🎯',
   };
+};
+
+// Extract potential image URL(s) and clean description text
+const extractMediaFromDescription = (raw) => {
+  if (!raw || typeof raw !== 'string') return { imageUrl: null, text: '', links: [] };
+  const urlRegex = /(https?:\/\/[^\s)]+)(?=\s|$)/gim;
+  const urls = [...raw.matchAll(urlRegex)].map(m => m[1]);
+  let imageUrl = null;
+  for (const u of urls) {
+    if (/\.(png|jpe?g|webp|gif)(\?|$)/i.test(u) || /gstatic\.com\/images/i.test(u) || /encrypted-tbn0\.gstatic\.com/i.test(u)) {
+      imageUrl = u; break;
+    }
+  }
+  // Remove lines that are just a URL or gstatic thumbnail references
+  const cleaned = raw
+    .split(/\n+/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !/^https?:\/\/\S+$/i.test(l) && !/encrypted-tbn0\.gstatic\.com/i.test(l))
+    .join('\n');
+  // Optionally shorten any lingering huge URLs inside text
+  const shortened = cleaned.replace(urlRegex, (m) => {
+    try {
+      const u = new URL(m);
+      let host = u.hostname.replace(/^www\./, '');
+      let path = u.pathname.replace(/\/$/, '');
+      if (path.length > 40) path = path.slice(0, 37) + '…';
+      return `${host}${path}`; // strip query for readability
+    } catch { return m; }
+  });
+  // Collect non-image links (excluding gstatic thumbnails)
+  const linkSet = urls.filter(u => u !== imageUrl && !/encrypted-tbn0\.gstatic\.com/i.test(u));
+  return { imageUrl, text: shortened, links: linkSet.slice(0, 5) };
 };
 
 const EventDetailPage = () => {
@@ -79,6 +111,11 @@ const EventDetailPage = () => {
     );
   }
 
+  const processed = useMemo(() => extractMediaFromDescription(event.description), [event.description]);
+
+  // Use extracted image if original is just an emoji or very short token
+  const showImageUrl = processed.imageUrl && (event.image?.length <= 3);
+
   return (
     <div className="p-6">
       <button onClick={() => navigate(-1)} className="text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-2 mb-6">
@@ -88,7 +125,13 @@ const EventDetailPage = () => {
       <div className="max-w-5xl mx-auto grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/10 border border-white/20 rounded-2xl p-6">
           <div className="flex items-center gap-4 mb-4">
-            <div className="text-6xl">{event.image}</div>
+            {showImageUrl ? (
+              <div className="w-28 h-28 rounded-xl overflow-hidden ring-1 ring-white/20 bg-black/30">
+                <img src={processed.imageUrl} alt="Event" className="w-full h-full object-cover" loading="lazy" />
+              </div>
+            ) : (
+              <div className="text-6xl leading-none select-none">{event.image}</div>
+            )}
             <div>
               <h1 className="text-3xl font-bold text-white">{event.title}</h1>
               <div className="text-gray-300">{event.organizer}</div>
@@ -110,9 +153,28 @@ const EventDetailPage = () => {
             </div>
           </div>
 
-          <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">
-            {event.description || 'Event description coming soon.'}
-          </p>
+          <div className="prose prose-invert max-w-none">
+            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap break-words">
+              {(processed.text && processed.text.trim()) || 'Event description coming soon.'}
+            </p>
+            {processed.links.length > 0 && (
+              <div className="mt-4 space-y-1">
+                <div className="text-xs uppercase tracking-wide text-gray-400">Related Links</div>
+                <ul className="list-disc ml-5 space-y-1">
+                  {processed.links.map(l => {
+                    let display = l;
+                    try { const u = new URL(l); display = u.hostname.replace(/^www\./,'') + u.pathname.slice(0,60); } catch {}
+                    if (display.length > 64) display = display.slice(0,61) + '…';
+                    return (
+                      <li key={l} className="text-sm">
+                        <a href={l} target="_blank" rel="noreferrer" className="text-cyan-300 hover:text-cyan-200 break-all">{display}</a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
