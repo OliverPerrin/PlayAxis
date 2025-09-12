@@ -14,6 +14,8 @@ async def list_events_slash(
     max_lat: float | None = None,
     min_lon: float | None = None,
     max_lon: float | None = None,
+    user_lat: float | None = Query(None, description="User latitude to bias ordering"),
+    user_lon: float | None = Query(None, description="User longitude to bias ordering"),
 ):
     try:
         return await aggregate_events(
@@ -25,6 +27,8 @@ async def list_events_slash(
             max_lat=max_lat,
             min_lon=min_lon,
             max_lon=max_lon,
+            user_lat=user_lat,
+            user_lon=user_lon,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Events fetch failed: {exc}")
@@ -39,11 +43,14 @@ async def list_events_no_slash(
     max_lat: float | None = None,
     min_lon: float | None = None,
     max_lon: float | None = None,
+    user_lat: float | None = Query(None),
+    user_lon: float | None = Query(None),
 ):
     return await list_events_slash(q=q, page=page, limit=limit,
                                    htichips=htichips,
                                    min_lat=min_lat, max_lat=max_lat,
-                                   min_lon=min_lon, max_lon=max_lon)
+                                   min_lon=min_lon, max_lon=max_lon,
+                                   user_lat=user_lat, user_lon=user_lon)
 
 
 @router.get("/viewport")
@@ -56,6 +63,8 @@ async def list_events_with_viewport(
     max_lat: float | None = None,
     min_lon: float | None = None,
     max_lon: float | None = None,
+    user_lat: float | None = Query(None),
+    user_lon: float | None = Query(None),
 ):
     """Return events plus a computed viewport bounding box for mapping.
     Not using a response_model to allow dynamic viewport dict.
@@ -63,6 +72,7 @@ async def list_events_with_viewport(
     resp = await aggregate_events(query=q, page=page, limit=limit,
                                   htichips=htichips,
                                   min_lat=min_lat, max_lat=max_lat,
-                                  min_lon=min_lon, max_lon=max_lon)
+                                  min_lon=min_lon, max_lon=max_lon,
+                                  user_lat=user_lat, user_lon=user_lon)
     vp = compute_viewport(resp.data)
     return {"total": resp.total, "viewport": vp, "events": [e.model_dump() for e in resp.data]}

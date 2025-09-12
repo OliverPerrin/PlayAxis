@@ -90,9 +90,10 @@ const normalizeEventItem = (e, idx=0) => {
 export const getEvents = async (query = '', lat = null, lon = null, extra = {}) => {
   const q = encodeURIComponent(query || '');
   // If geolocation provided, use aggregate endpoint which already normalizes
-  const baseUrl = (lat != null && lon != null)
-    ? `${API_URL}/aggregate/events?q=${q}&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`
-    : `${API_URL}/events/?q=${q}`;
+  let baseUrl = `${API_URL}/events/?q=${q}`;
+  if (lat != null && lon != null) {
+    baseUrl += `&user_lat=${encodeURIComponent(lat)}&user_lon=${encodeURIComponent(lon)}`;
+  }
   try {
     const res = await fetchWithTimeout(baseUrl, {
       method: 'GET',
@@ -106,14 +107,7 @@ export const getEvents = async (query = '', lat = null, lon = null, extra = {}) 
     else if (Array.isArray(data?.data)) list = data.data;
 
     // Fallback: if no events from /events, try /aggregate/events for broader sources
-    if (!list.length && (lat == null || lon == null)) {
-      const res2 = await fetchWithTimeout(`${API_URL}/aggregate/events?q=${q}`, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      });
-      const data2 = await handleResponse(res2);
-      if (Array.isArray(data2?.events)) list = data2.events;
-    }
+    // No fallback to aggregate now; we keep one consistent source so ordering is stable.
     return { events: list.map((e, i) => normalizeEventItem(e, i)) };
   } catch (e) {
     console.error('getEvents error:', e);
