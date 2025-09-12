@@ -79,17 +79,24 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
 
     async def producer():
         safe_query = (query or '').strip()
+        # Ensure we always include the keyword 'events' to guide the engine correctly
         base_query = safe_query if safe_query else 'events'
+        if 'event' not in base_query.lower():
+            base_query = f"events {base_query}".strip()
 
         # Build a sequence of increasingly broad localized queries if user coords provided.
         queries: List[str] = []
         used_city_state: Optional[tuple[str, Optional[str]]] = None
+        location_param: Optional[str] = None
+
         if user_lat is not None and user_lon is not None:
             rev = await _reverse_geocode(user_lat, user_lon)
             if rev and rev.get('city'):
                 city = rev['city']
                 state = rev.get('state')
                 used_city_state = (city, state)
+                # Build SerpApi location parameter when possible: "City, State"
+                location_param = f"{city}, {state}" if state else city
                 # Generate variants to coax local SerpApi results.
                 # Order matters: shortest first to let Google supply implicit locality, then explicit phrasings.
                 locality_tokens = [
@@ -113,6 +120,7 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                     if qv_norm not in seenq:
                         seenq.add(qv_norm)
                         queries.append(qv)
+
         # Always append the base query last as a fallback (broad region / national)
         if base_query.lower() not in [q.lower() for q in queries]:
             queries.append(base_query)
@@ -123,7 +131,7 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
         # Target number of local results before we stop localized querying. Uses MIN_LOCAL_RESULTS * 2 to have some choice.
         target_local = MIN_LOCAL_RESULTS * 2
         for idx, qstr in enumerate(queries):
-            batch = await fetch_google_events(query=qstr, start=(page - 1) * 10, htichips=htichips)
+            batch = await fetch_google_events(query=qstr, start=(page - 1) * 10, htichips=htichips, location=location_param)
             for ev in batch:
                 if ev.id in seen_ids:
                     continue
@@ -146,7 +154,7 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
         events = aggregated
         # Final safety fallback: if localized aggregation yielded no results, do a broad base query
         if not events:
-            fallback_batch = await fetch_google_events(query=base_query, start=(page - 1) * 10, htichips=htichips)
+            fallback_batch = await fetch_google_events(query=base_query, start=(page - 1) * 10, htichips=htichips, location=location_param)
             events.extend(fallback_batch)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
