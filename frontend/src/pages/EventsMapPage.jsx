@@ -14,7 +14,7 @@ const API_BASE = (() => {
   return 'https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/v1';
 })();
 
-const fetchViewportEvents = async ({ q, bbox }) => {
+const fetchViewportEvents = async ({ q, bbox, lat, lon }) => {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (bbox) {
@@ -22,6 +22,10 @@ const fetchViewportEvents = async ({ q, bbox }) => {
     params.set('max_lat', bbox.max_lat);
     params.set('min_lon', bbox.min_lon);
     params.set('max_lon', bbox.max_lon);
+  }
+  if (lat != null && lon != null) {
+    params.set('user_lat', lat);
+    params.set('user_lon', lon);
   }
   const headers = { 'Accept': 'application/json' };
   const token = localStorage.getItem('token');
@@ -88,7 +92,7 @@ export default function EventsMapPage() {
   const load = useCallback(async (opts = {}) => {
     try {
       setLoading(true);
-      const data = await fetchViewportEvents({ q: query, bbox: opts.bbox || bbox });
+      const data = await fetchViewportEvents({ q: query, bbox: opts.bbox || bbox, lat: me.ok ? me.lat : null, lon: me.ok ? me.lon : null });
       setEvents(data.events || []);
       setError(null);
     } catch (e) {
@@ -96,7 +100,7 @@ export default function EventsMapPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, bbox]);
+  }, [query, bbox, me.ok, me.lat, me.lon]);
 
   // Initial load once geolocation known or after slight delay
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [me.ok]);
