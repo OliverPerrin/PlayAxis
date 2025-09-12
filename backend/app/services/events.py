@@ -5,10 +5,12 @@ import httpx
 import hashlib
 import json
 from app.schemas.event import Event, EventsResponse
+import logging
 from app.services.google_events import fetch_google_events
 from app.core.cache import cache
 
 EVENTS_CACHE_TTL = 180  # seconds
+logger = logging.getLogger(__name__)
 
 def _cache_key(query: str, page: int, limit: int, htichips: str | None,
                min_lat: float | None, max_lat: float | None,
@@ -132,47 +134,64 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
         if base_query.lower() not in [q.lower() for q in queries]:
             queries.append(base_query)
 
-        # Fetch & aggregate with early exit once enough local results.
+        # Fetch & aggregate with pagination and early exit once enough local results.
         aggregated: List[Event] = []
         seen_ids = set()
-        # Target number of local results before we stop localized querying. Uses MIN_LOCAL_RESULTS * 2 to have some choice.
-        target_local = MIN_LOCAL_RESULTS * 2
+        target_local = max(MIN_LOCAL_RESULTS * 2, limit)  # prefer at least enough locals to fill current page
+        requests_used = 0
+        MAX_REQUESTS = 6
+        start_offsets = [max(0, (page - 1) * 10), max(0, (page - 1) * 10) + 10]
         for idx, qstr in enumerate(queries):
-            batch = await fetch_google_events(query=qstr, start=(page - 1) * 10, htichips=htichips, location=location_param)
-            for ev in batch:
-                if ev.id in seen_ids:
-                    continue
-                seen_ids.add(ev.id)
-                aggregated.append(ev)
-            # Annotate distance for locality evaluation progressively if coords given.
-            if user_lat is not None and user_lon is not None:
-                local_count = 0
-                for ev in aggregated:
-                    if getattr(ev, '_distance_km', None) is None and ev.latitude is not None and ev.longitude is not None:
-                        try:
-                            setattr(ev, '_distance_km', _haversine(user_lat, user_lon, ev.latitude, ev.longitude))
-                        except Exception:
-                            setattr(ev, '_distance_km', None)
-                    if getattr(ev, '_distance_km', None) is not None and ev._distance_km <= LOCAL_RADIUS_KM:
-                        local_count += 1
-                # Early exit: once enough local results collected from localized queries, break.
-                if local_count >= target_local and idx < len(queries) - 1:
+            if requests_used >= MAX_REQUESTS:
+                break
+            for off in start_offsets:
+                if requests_used >= MAX_REQUESTS:
                     break
-        events = aggregated
-        # If localized aggregation yielded no results and we used a location, retry queries without location
-        if not events and location_param:
-            for idx, qstr in enumerate(queries):
-                batch = await fetch_google_events(query=qstr, start=(page - 1) * 10, htichips=htichips, location=None)
+                batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=location_param, no_cache=True)
+                requests_used += 1
+                logger.info("events.fetch q='%s' loc='%s' start=%s -> %s", qstr, location_param, off, len(batch))
                 for ev in batch:
                     if ev.id in seen_ids:
                         continue
                     seen_ids.add(ev.id)
-                    events.append(ev)
+                    aggregated.append(ev)
+                # Annotate distance for locality evaluation progressively if coords given.
+                if user_lat is not None and user_lon is not None:
+                    local_count = 0
+                    for ev in aggregated:
+                        if getattr(ev, '_distance_km', None) is None and ev.latitude is not None and ev.longitude is not None:
+                            try:
+                                setattr(ev, '_distance_km', _haversine(user_lat, user_lon, ev.latitude, ev.longitude))
+                            except Exception:
+                                setattr(ev, '_distance_km', None)
+                        if getattr(ev, '_distance_km', None) is not None and ev._distance_km <= LOCAL_RADIUS_KM:
+                            local_count += 1
+                    if local_count >= target_local:
+                        break
+            # if we met target locals after inner loop
+            if user_lat is not None and user_lon is not None:
+                local_count = len([e for e in aggregated if getattr(e, '_distance_km', None) is not None and e._distance_km <= LOCAL_RADIUS_KM])
+                if local_count >= target_local:
+                    break
+        events = aggregated
+        # If localized aggregation yielded no results and we used a location, retry queries without location (with pagination)
+        if not events and location_param:
+            for idx, qstr in enumerate(queries):
+                for off in start_offsets:
+                    batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=None)
+                    logger.info("events.retry-no-loc q='%s' start=%s -> %s", qstr, off, len(batch))
+                    for ev in batch:
+                        if ev.id in seen_ids:
+                            continue
+                        seen_ids.add(ev.id)
+                        events.append(ev)
+                    if events:
+                        break
                 if events:
                     break
         # Final safety fallback: if still no results, broad base query without location
         if not events:
-            fallback_batch = await fetch_google_events(query=base_query, start=(page - 1) * 10, htichips=htichips, location=None)
+            fallback_batch = await fetch_google_events(query=base_query, start=max(0, (page - 1) * 10), htichips=htichips, location=None)
             events.extend(fallback_batch)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
@@ -191,8 +210,13 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                 else:
                     dist = None
                 setattr(ev, '_distance_km', dist if dist is not None else getattr(ev, '_distance_km', None))
-            # Partition into local vs non-local
-            local = [e for e in events if (e._distance_km is not None and e._distance_km <= LOCAL_RADIUS_KM)]
+            # Partition into local vs non-local; widen radius adaptively to ensure we have some locals
+            radius_seq = [50.0, 100.0, LOCAL_RADIUS_KM, 250.0, 500.0]
+            local = []
+            for r in radius_seq:
+                local = [e for e in events if (e._distance_km is not None and e._distance_km <= r)]
+                if len(local) >= MIN_LOCAL_RESULTS or r == radius_seq[-1]:
+                    break
             non_local = [e for e in events if e not in local]
             local.sort(key=lambda e: (e._distance_km, e.start or "9999"))
             non_local.sort(key=lambda e: (e._distance_km is None, e._distance_km if e._distance_km is not None else 1e9, e.start or "9999"))

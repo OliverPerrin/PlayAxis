@@ -137,7 +137,7 @@ async def _geocode_address(address_text: str) -> Tuple[Optional[float], Optional
 
     return await cache.get_or_set(cache_key, 86400, producer)  # cache 24h
 
-async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = None, gl: Optional[str] = None, htichips: Optional[str] = None, location: Optional[str] = None) -> List[Event]:
+async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = None, gl: Optional[str] = None, htichips: Optional[str] = None, location: Optional[str] = None, no_cache: Optional[bool] = None) -> List[Event]:
     """Fetch events using SerpApi Google Events engine and normalize into Event models.
 
     Parameters
@@ -165,6 +165,8 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
         params["htichips"] = htichips
     if location:
         params["location"] = location
+    if no_cache is True:
+        params["no_cache"] = "true"
 
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
