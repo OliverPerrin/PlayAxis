@@ -138,7 +138,14 @@ async def _geocode_address(address_text: str) -> Tuple[Optional[float], Optional
 
     return await cache.get_or_set(cache_key, 86400, producer)  # cache 24h
 
-async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = None, gl: Optional[str] = None, htichips: Optional[str] = None, location: Optional[str] = None, no_cache: Optional[bool] = None) -> List[Event]:
+async def fetch_google_events(query: str,
+                              start: int = 0,
+                              hl: Optional[str] = None,
+                              gl: Optional[str] = None,
+                              htichips: Optional[str] = None,
+                              location: Optional[str] = None,
+                              no_cache: Optional[bool] = None,
+                              enrich_limit: int = 6) -> List[Event]:
     """Fetch events using SerpApi Google Events engine and normalize into Event models.
 
     Parameters
@@ -243,7 +250,7 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
             continue
 
     # Second pass: capped, parallel enrichment for missing coordinates
-    MAX_ENRICH = 6
+    MAX_ENRICH = max(0, int(enrich_limit))
     tasks = []
     indices = []
     for idx, elmap, addr_lines in candidates_for_enrich:

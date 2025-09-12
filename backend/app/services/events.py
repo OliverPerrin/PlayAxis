@@ -138,8 +138,13 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
         aggregated: List[Event] = []
         seen_ids = set()
         target_local = max(MIN_LOCAL_RESULTS * 2, limit)  # prefer at least enough locals to fill current page
+
+        # Determine enrichment and request budgets based on whether a viewport filter is present.
+        enrich_limit_global = 40 if None not in (min_lat, max_lat, min_lon, max_lon) else 6
         requests_used = 0
-        MAX_REQUESTS = 6
+        # When a viewport is provided, use a slightly higher request budget to improve chances of getting
+        # events with coordinates that fall inside the bbox for map markers.
+        MAX_REQUESTS = 10 if None not in (min_lat, max_lat, min_lon, max_lon) else 6
         start_offsets = [max(0, (page - 1) * 10), max(0, (page - 1) * 10) + 10]
         for idx, qstr in enumerate(queries):
             if requests_used >= MAX_REQUESTS:
@@ -147,7 +152,8 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
             for off in start_offsets:
                 if requests_used >= MAX_REQUESTS:
                     break
-                batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=location_param, no_cache=True)
+                # Use higher enrichment when viewport is present so more items gain coordinates for markers.
+                batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=location_param, no_cache=True, enrich_limit=enrich_limit_global)
                 requests_used += 1
                 logger.info("events.fetch q='%s' loc='%s' start=%s -> %s", qstr, location_param, off, len(batch))
                 for ev in batch:
@@ -178,7 +184,7 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
         if not events and location_param:
             for idx, qstr in enumerate(queries):
                 for off in start_offsets:
-                    batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=None)
+                    batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=None, enrich_limit=enrich_limit_global)
                     logger.info("events.retry-no-loc q='%s' start=%s -> %s", qstr, off, len(batch))
                     for ev in batch:
                         if ev.id in seen_ids:
@@ -191,14 +197,22 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                     break
         # Final safety fallback: if still no results, broad base query without location
         if not events:
-            fallback_batch = await fetch_google_events(query=base_query, start=max(0, (page - 1) * 10), htichips=htichips, location=None)
+            fallback_batch = await fetch_google_events(query=base_query, start=max(0, (page - 1) * 10), htichips=htichips, location=None, enrich_limit=enrich_limit_global)
             events.extend(fallback_batch)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
+            events_all = events[:]
             events = [e for e in events if (
                 e.latitude is not None and e.longitude is not None and
                 min_lat <= e.latitude <= max_lat and min_lon <= e.longitude <= max_lon
             )]
+            # Fallback: if filtering produced zero events, broaden by taking nearest to center
+            if not events and events_all:
+                center_lat = (min_lat + max_lat) / 2.0
+                center_lon = (min_lon + max_lon) / 2.0
+                with_coords = [e for e in events_all if e.latitude is not None and e.longitude is not None]
+                with_coords.sort(key=lambda e: _haversine(center_lat, center_lon, e.latitude, e.longitude))
+                events = with_coords[:min(limit or 20, 40)]
         # Distance annotation & local prioritization
         if user_lat is not None and user_lon is not None:
             for ev in events:
