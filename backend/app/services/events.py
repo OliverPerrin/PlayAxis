@@ -78,22 +78,71 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
 
     async def producer():
         safe_query = (query or '').strip()
-        # We construct a Google query. If user query already contains a location hint, keep it; else default.
-        google_query = safe_query
-        augmented = False
-        if not google_query:
-            google_query = 'events'
-        # If user location provided and query lacks a city token, augment.
+        base_query = safe_query if safe_query else 'events'
+
+        # Build a sequence of increasingly broad localized queries if user coords provided.
+        queries: List[str] = []
+        used_city_state: Optional[tuple[str, Optional[str]]] = None
         if user_lat is not None and user_lon is not None:
             rev = await _reverse_geocode(user_lat, user_lon)
             if rev and rev.get('city'):
-                city_token = rev['city']
-                state_token = rev.get('state')
-                # Check if city already appears (case-insensitive)
-                if city_token.lower() not in google_query.lower():
-                    google_query = f"{google_query} in {city_token}{(' ' + state_token) if state_token else ''}".strip()
-                    augmented = True
-        events: List[Event] = await fetch_google_events(query=google_query, start=(page - 1) * 10, htichips=htichips)
+                city = rev['city']
+                state = rev.get('state')
+                used_city_state = (city, state)
+                # Generate variants to coax local SerpApi results.
+                # Order matters: shortest first to let Google supply implicit locality, then explicit phrasings.
+                locality_tokens = [
+                    f"{base_query} {city}",
+                    f"{base_query} in {city}",
+                ]
+                if state:
+                    locality_tokens.extend([
+                        f"{base_query} {city} {state}",
+                        f"{base_query} in {city} {state}",
+                    ])
+                # Add a near me style variant (Google often interprets this relative to IP / location hints inside engine)
+                locality_tokens.append(f"{base_query} near me")
+                # Finally the most general with state only (captures statewide events) if state exists.
+                if state:
+                    locality_tokens.append(f"{base_query} {state}")
+                # De-duplicate while preserving order
+                seenq = set()
+                for qv in locality_tokens:
+                    qv_norm = qv.lower()
+                    if qv_norm not in seenq:
+                        seenq.add(qv_norm)
+                        queries.append(qv)
+        # Always append the base query last as a fallback (broad region / national)
+        if base_query.lower() not in [q.lower() for q in queries]:
+            queries.append(base_query)
+
+        # Fetch & aggregate with early exit once enough local results.
+        aggregated: List[Event] = []
+        seen_ids = set()
+        # Target number of local results before we stop localized querying. Uses MIN_LOCAL_RESULTS * 2 to have some choice.
+        target_local = MIN_LOCAL_RESULTS * 2
+        for idx, qstr in enumerate(queries):
+            batch = await fetch_google_events(query=qstr, start=(page - 1) * 10, htichips=htichips)
+            for ev in batch:
+                if ev.id in seen_ids:
+                    continue
+                seen_ids.add(ev.id)
+                aggregated.append(ev)
+            # Annotate distance for locality evaluation progressively if coords given.
+            if user_lat is not None and user_lon is not None:
+                local_count = 0
+                for ev in aggregated:
+                    if getattr(ev, '_distance_km', None) is None and ev.latitude is not None and ev.longitude is not None:
+                        try:
+                            setattr(ev, '_distance_km', _haversine(user_lat, user_lon, ev.latitude, ev.longitude))
+                        except Exception:
+                            setattr(ev, '_distance_km', None)
+                    if getattr(ev, '_distance_km', None) is not None and ev._distance_km <= LOCAL_RADIUS_KM:
+                        local_count += 1
+                # Early exit: once enough local results collected from localized queries, break.
+                if local_count >= target_local and idx < len(queries) - 1:
+                    break
+        events = aggregated
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
             events = [e for e in events if (
@@ -110,7 +159,7 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                         dist = None
                 else:
                     dist = None
-                setattr(ev, '_distance_km', dist)
+                setattr(ev, '_distance_km', dist if dist is not None else getattr(ev, '_distance_km', None))
             # Partition into local vs non-local
             local = [e for e in events if (e._distance_km is not None and e._distance_km <= LOCAL_RADIUS_KM)]
             non_local = [e for e in events if e not in local]
@@ -126,6 +175,11 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
             trimmed = events[:limit]
         else:
             trimmed = events
+        # Expose distance_km outward (non schema field) by embedding into id-stable copy if desired; simplest is to attach attribute.
+        for ev in trimmed:
+            if hasattr(ev, '_distance_km') and ev._distance_km is not None:
+                # monkey-patch attribute for consumer (FastAPI will include since pydantic by default excludes unknown, so we may later extend schema)
+                setattr(ev, 'distance_km', round(ev._distance_km, 2))
         return EventsResponse(total=len(trimmed), data=trimmed)
 
     cached = await cache.get(key)
