@@ -105,9 +105,13 @@ export const getEvents = async (query = '', lat = null, lon = null, extra = {}) 
     let list = [];
     if (Array.isArray(data?.events)) list = data.events;
     else if (Array.isArray(data?.data)) list = data.data;
-
-    // Fallback: if no events from /events, try /aggregate/events for broader sources
-    // No fallback to aggregate now; we keep one consistent source so ordering is stable.
+    // If location-biased request yielded nothing, retry once without coords as a general query
+    if ((lat != null && lon != null) && (!Array.isArray(list) || list.length === 0)) {
+      const retryUrl = `${API_URL}/events/?q=${q}`;
+      const res2 = await fetchWithTimeout(retryUrl, { method: 'GET', headers: getAuthHeaders() });
+      const data2 = await handleResponse(res2);
+      list = Array.isArray(data2?.events) ? data2.events : (Array.isArray(data2?.data) ? data2.data : []);
+    }
     return { events: list.map((e, i) => normalizeEventItem(e, i)) };
   } catch (e) {
     console.error('getEvents error:', e);

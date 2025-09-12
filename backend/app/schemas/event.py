@@ -40,6 +40,8 @@ class Event(BaseModel):
     max_price: Optional[float] = None
     currency: Optional[str] = None
     ticket_classes: Optional[List[TicketClass]] = None
+    # Optional computed field (not persisted): distance in kilometers from user
+    distance_km: Optional[float] = None
 
 class EventsResponse(BaseModel):
     total: int

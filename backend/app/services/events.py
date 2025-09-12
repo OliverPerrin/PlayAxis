@@ -48,7 +48,8 @@ async def _reverse_geocode(lat: float, lon: float) -> Optional[dict]:
         try:
             url = "https://nominatim.openstreetmap.org/reverse"
             params = {"lat": lat, "lon": lon, "format": "json", "zoom": 10, "addressdetails": 1}
-            headers = {"User-Agent": "PlayAxisEvents/1.0 (reverse)"}
+            # Include a contact per Nominatim usage policy to reduce risk of throttling
+            headers = {"User-Agent": "PlayAxisEvents/1.0 (contact: support@playaxis.local)"}
             async with httpx.AsyncClient(timeout=8.0) as client:
                 r = await client.get(url, params=params, headers=headers)
                 if r.status_code != 200:
@@ -143,6 +144,10 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                 if local_count >= target_local and idx < len(queries) - 1:
                     break
         events = aggregated
+        # Final safety fallback: if localized aggregation yielded no results, do a broad base query
+        if not events:
+            fallback_batch = await fetch_google_events(query=base_query, start=(page - 1) * 10, htichips=htichips)
+            events.extend(fallback_batch)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
             events = [e for e in events if (
