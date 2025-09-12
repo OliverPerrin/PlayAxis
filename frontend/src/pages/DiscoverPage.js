@@ -191,7 +191,7 @@ const DiscoverPage = () => {
           </button>
         </div>
 
-  <div className="flex items-center gap-4 mb-3 pr-16">
+  <div className={`flex items-center gap-4 mb-3 pr-16 ${event.featured ? 'mt-10' : ''}`}>        
           <div className="text-5xl">{event.image}</div>
           <div className="flex-1">
             <h3 className={`text-xl font-bold mb-1 transition-colors break-words leading-snug ${isDark ? 'text-white group-hover:text-cyan-300' : 'text-slate-900 group-hover:text-emerald-600'}`}>{event.title}</h3>

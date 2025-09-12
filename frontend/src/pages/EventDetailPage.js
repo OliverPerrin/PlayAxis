@@ -113,7 +113,11 @@ const EventDetailPage = () => {
 
   // Safe to compute directly (was previously useMemo, but removed to avoid conditional hook order issues)
   const processed = extractMediaFromDescription(event?.description);
-  const showImageUrl = processed.imageUrl && (event?.image?.length <= 3);
+  const heroImageUrl = (() => {
+    if (event?.image && /^https?:\/\//i.test(event.image)) return event.image;
+    if (processed.imageUrl) return processed.imageUrl;
+    return null;
+  })();
 
   return (
     <div className="p-6">
@@ -124,16 +128,16 @@ const EventDetailPage = () => {
       <div className="max-w-5xl mx-auto grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/10 border border-white/20 rounded-2xl p-6">
           <div className="flex items-center gap-4 mb-4">
-            {showImageUrl ? (
-              <div className="w-28 h-28 rounded-xl overflow-hidden ring-1 ring-white/20 bg-black/30">
-                <img src={processed.imageUrl} alt="Event" className="w-full h-full object-cover" loading="lazy" />
+            {heroImageUrl ? (
+              <div className="w-32 h-32 rounded-xl overflow-hidden ring-1 ring-white/20 bg-black/30 flex items-center justify-center">
+                <img src={heroImageUrl} alt="Event" className="w-full h-full object-cover" loading="lazy" />
               </div>
             ) : (
-              <div className="text-6xl leading-none select-none">{event.image}</div>
+              <div className="text-6xl leading-none select-none" aria-hidden>{event.image || '🎯'}</div>
             )}
-            <div>
-              <h1 className="text-3xl font-bold text-white">{event.title}</h1>
-              <div className="text-gray-300">{event.organizer}</div>
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold text-white break-words leading-tight">{event.title}</h1>
+              <div className="text-gray-300 text-sm mt-1 break-words">{event.organizer}</div>
             </div>
           </div>
 
@@ -152,14 +156,14 @@ const EventDetailPage = () => {
             </div>
           </div>
 
-          <div className="prose prose-invert max-w-none">
-            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap break-words">
+          <div>
+            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap break-words text-sm md:text-base">
               {(processed.text && processed.text.trim()) || 'Event description coming soon.'}
             </p>
             {processed.links.length > 0 && (
-              <div className="mt-4 space-y-1">
-                <div className="text-xs uppercase tracking-wide text-gray-400">Related Links</div>
-                <ul className="list-disc ml-5 space-y-1">
+              <div className="mt-5">
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Related Links</div>
+                <ul className="space-y-1">
                   {processed.links.map(l => {
                     let display = l;
                     try { const u = new URL(l); display = u.hostname.replace(/^www\./,'') + u.pathname.slice(0,60); } catch {}
