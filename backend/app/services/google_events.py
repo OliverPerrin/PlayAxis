@@ -1,4 +1,5 @@
 import httpx
+import asyncio
 import logging
 from typing import List, Optional, Tuple
 import urllib.parse
@@ -86,7 +87,7 @@ async def _enrich_lat_lon(event_location_map: dict) -> Tuple[Optional[float], Op
     cache_key = f"latlon:{link}"
     async def producer():
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=6.0) as client:
                 r = await client.get(link)
                 if r.status_code != 200:
                     return (None, None)
@@ -119,7 +120,7 @@ async def _geocode_address(address_text: str) -> Tuple[Optional[float], Optional
             }
             url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(params)
             headers = {"User-Agent": "PlayAxisEvents/1.0 (contact: support@playaxis.local)"}
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(timeout=4.0) as client:
                 r = await client.get(url, headers=headers)
                 if r.status_code != 200:
                     return (None, None)
@@ -169,7 +170,7 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
         params["no_cache"] = "true"
 
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             r = await client.get(SERP_BASE, params=params)
             if r.status_code != 200:
                 logger.error("SerpApi google_events error status=%s body=%s", r.status_code, r.text[:200])
@@ -181,14 +182,14 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
 
     raw_events = data.get("events_results") or []
     out: List[Event] = []
+    # First pass: build models without slow enrichment
+    candidates_for_enrich: List[tuple[int, dict, Optional[list[str]]]] = []  # (index, event_location_map, address_lines)
     for ev in raw_events:
         try:
-            # Address lines: usually [line, cityState]
             address_lines = ev.get("address") or []
             city = None
             country = None
             if address_lines:
-                # Naive split of last line for city/country if possible
                 last = address_lines[-1]
                 if "," in last:
                     parts = [p.strip() for p in last.split(",")]
@@ -200,26 +201,14 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
                     city = last
 
             venue_obj = ev.get("venue") or {}
-            venue_name = venue_obj.get("name")
-            if not venue_name and address_lines:
-                venue_name = address_lines[0]
-            # Dates: attempt parsing 'when'; fallback to original text.
+            venue_name = venue_obj.get("name") or (address_lines[0] if address_lines else None)
+
             date_obj = ev.get("date") or {}
             when_text = date_obj.get("when") or date_obj.get("start_date")
             start_iso, end_iso = _parse_when_to_iso(when_text or "")
 
-            # Optional coordinate enrichment
             lat = None
             lon = None
-            if ev.get('event_location_map'):
-                lat, lon = await _enrich_lat_lon(ev.get('event_location_map'))
-            # Fallback geocode if still missing
-            if (lat is None or lon is None) and address_lines:
-                joined_addr = ", ".join(address_lines)
-                g_lat, g_lon = await _geocode_address(joined_addr)
-                if g_lat is not None and g_lon is not None:
-                    lat, lon = g_lat, g_lon
-
             out.append(Event(
                 id=ev.get("link") or ev.get("title"),
                 source="google_events",
@@ -246,6 +235,40 @@ async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = No
                 currency=None,
                 ticket_classes=None,
             ))
+            # Track enrichment candidates
+            elmap = ev.get('event_location_map')
+            if elmap or address_lines:
+                candidates_for_enrich.append((len(out)-1, elmap or {}, address_lines if address_lines else None))
         except Exception:
             continue
+
+    # Second pass: capped, parallel enrichment for missing coordinates
+    MAX_ENRICH = 6
+    tasks = []
+    indices = []
+    for idx, elmap, addr_lines in candidates_for_enrich:
+        if MAX_ENRICH <= 0:
+            break
+        if elmap:
+            tasks.append(_enrich_lat_lon(elmap))
+            indices.append(idx)
+            MAX_ENRICH -= 1
+        elif addr_lines:
+            joined_addr = ", ".join(addr_lines)
+            tasks.append(_geocode_address(joined_addr))
+            indices.append(idx)
+            MAX_ENRICH -= 1
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, res in enumerate(results):
+            try:
+                lat, lon = res if isinstance(res, tuple) and len(res) == 2 else (None, None)
+            except Exception:
+                lat, lon = (None, None)
+            if lat is not None and lon is not None:
+                j = indices[i]
+                # Update the Event instance
+                out[j].latitude = float(lat)
+                out[j].longitude = float(lon)
+
     return out
