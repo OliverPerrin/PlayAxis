@@ -117,8 +117,8 @@ export default function EventsMapPage() {
             <ul className="divide-y">
               {(events || []).map((e) => (
                 <li key={e.id} className="py-3">
-                  <div className="font-semibold">{e.title || '(no title)'} <span className="text-xs text-gray-500">[{e.source}]</span></div>
-                  {e.start_time && <div className="text-sm text-gray-600">{new Date(e.start_time).toLocaleString()}</div>}
+                  <div className="font-semibold">{e.name || e.title || '(no title)'} <span className="text-xs text-gray-500">[{e.source}]</span></div>
+                  {e.start && <div className="text-sm text-gray-600">{new Date(e.start).toLocaleString()}</div>}
                   {(e.city || e.country) && <div className="text-sm text-gray-600">{[e.city, e.country].filter(Boolean).join(', ')}</div>}
                   {e.url && <a className="text-blue-600 text-sm" href={e.url} target="_blank" rel="noreferrer">Details</a>}
                 </li>
@@ -141,8 +141,8 @@ export default function EventsMapPage() {
               <Marker key={e.id} position={[e.latitude, e.longitude]}>
                 <Popup>
                   <div className="space-y-1">
-                    <div className="font-semibold">{e.title || '(no title)'}</div>
-                    {e.start_time && <div className="text-sm">{new Date(e.start_time).toLocaleString()}</div>}
+                    <div className="font-semibold">{e.name || e.title || '(no title)'}</div>
+                    {e.start && <div className="text-sm">{new Date(e.start).toLocaleString()}</div>}
                     {(e.city || e.country) && <div className="text-sm text-gray-600">{[e.city, e.country].filter(Boolean).join(', ')}</div>}
                     {e.url && <a className="text-blue-600 text-sm" href={e.url} target="_blank" rel="noreferrer">Open</a>}
                   </div>

@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { getEvents } from '../api';
 import { useNavigate } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
@@ -41,6 +41,24 @@ const EventsPage = () => {
   const subText = isDark ? 'text-gray-300' : 'text-slate-600';
   const muted = isDark ? 'text-gray-400' : 'text-slate-500';
 
+  const formatUrlDisplay = useCallback((u) => {
+    if (!u) return '';
+    try {
+      const urlObj = new URL(u);
+      let path = urlObj.pathname === '/' ? '' : urlObj.pathname;
+      if (path.length > 24) path = path.slice(0, 24) + '…';
+      return urlObj.hostname + path;
+    } catch {
+      return u.length > 40 ? u.slice(0, 40) + '…' : u;
+    }
+  }, []);
+
+  const isLikelyUrlOnly = (text) => {
+    if (!text) return false;
+    const trimmed = text.trim();
+    return /^https?:\/\//i.test(trimmed) && !trimmed.includes(' ');
+  };
+
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-5xl mx-auto">
@@ -78,7 +96,30 @@ const EventsPage = () => {
                   </div>
                 </div>
                 {ev.description && (
-                  <p className={`text-sm mt-2 line-clamp-2 ${subText}`}>{ev.description}</p>
+                  isLikelyUrlOnly(ev.description) ? (
+                    <a
+                      href={ev.description}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className={`text-sm mt-2 inline-block max-w-full break-words underline ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-blue-600 hover:text-blue-500'}`}
+                    >
+                      {formatUrlDisplay(ev.description)}
+                    </a>
+                  ) : (
+                    <p className={`text-sm mt-2 line-clamp-2 break-words ${subText}`}>{ev.description}</p>
+                  )
+                )}
+                {ev.url && !isLikelyUrlOnly(ev.description) && (
+                  <a
+                    href={ev.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className={`text-xs mt-2 inline-block max-w-full break-all underline ${isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-blue-600 hover:text-blue-500'}`}
+                  >
+                    {formatUrlDisplay(ev.url)}
+                  </a>
                 )}
               </div>
             ))}

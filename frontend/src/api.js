@@ -65,13 +65,13 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
 const normalizeEventItem = (e, idx=0) => {
   if (!e) return null;
   // Support backend normalized Event schema and raw Eventbrite payloads
-  const title = e.title || e?.name?.text || e?.name || 'Untitled Event';
+  const title = e.name || e.title || e?.name?.text || 'Untitled Event';
   const start = e.start || e?.start_time || e?.start?.local || e?.date || null;
   const end = e.end || e?.end_time || e?.end?.local || null;
   const venueName = e.venue || e?.venue?.name || e?.location || 'Location TBA';
   return {
     id: String(e.id ?? e.event_id ?? `${idx}-${title}`),
-    source: e.source || 'eventbrite',
+  source: e.source || 'google',
     title,
     description: e.description?.text || e.description || '',
     url: e.url || null,
