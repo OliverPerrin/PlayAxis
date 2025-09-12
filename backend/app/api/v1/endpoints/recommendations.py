@@ -5,7 +5,6 @@ from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.schemas.user import User
 from app.schemas.recommendation import Recommendation
-from app.services.eventbrite import get_eventbrite_events
 from app.services.twitch import get_twitch_streams
 from app.services.sportsbook import get_sportsbook_events
 from typing import List
@@ -24,15 +23,6 @@ async def get_recommendations(
 
     # Simple recommendation based on interests
     for interest in current_user.interests:
-        # Eventbrite events
-        try:
-            eventbrite_query = interest.name
-            eventbrite_data = await get_eventbrite_events(eventbrite_query)
-            if "events" in eventbrite_data:
-                for event in eventbrite_data["events"]:
-                    recommended_events.append({"type": "eventbrite", "data": event})
-        except Exception as e:
-            print(f"Error fetching Eventbrite events for {interest.name}: {e}")
 
         # Twitch streams (example mapping)
         twitch_game_mapping = {

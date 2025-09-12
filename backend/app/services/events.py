@@ -8,13 +8,14 @@ from app.core.cache import cache
 
 EVENTS_CACHE_TTL = 180  # seconds
 
-def _cache_key(query: str, page: int, limit: int,
+def _cache_key(query: str, page: int, limit: int, htichips: str | None,
                min_lat: float | None, max_lat: float | None,
                min_lon: float | None, max_lon: float | None) -> str:
     raw = json.dumps({
         "q": query,
         "page": page,
         "limit": limit,
+        "htichips": htichips,
         "min_lat": min_lat,
         "max_lat": max_lat,
         "min_lon": min_lon,
@@ -23,15 +24,16 @@ def _cache_key(query: str, page: int, limit: int,
     return "events:" + hashlib.sha256(raw.encode()).hexdigest()
 
 async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
+                           htichips: str | None = None,
                            min_lat: float | None = None, max_lat: float | None = None,
                            min_lon: float | None = None, max_lon: float | None = None) -> EventsResponse:
-    key = _cache_key(query, page, limit, min_lat, max_lat, min_lon, max_lon)
+    key = _cache_key(query, page, limit, htichips, min_lat, max_lat, min_lon, max_lon)
 
     async def producer():
         safe_query = (query or '').strip()
         # We construct a Google query. If user query already contains a location hint, keep it; else default.
         google_query = safe_query or 'Events near me'
-        events: List[Event] = await fetch_google_events(query=google_query, start=(page - 1) * 10)
+        events: List[Event] = await fetch_google_events(query=google_query, start=(page - 1) * 10, htichips=htichips)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
             events = [e for e in events if (

@@ -10,5 +10,5 @@ class Event(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
     url = Column(String(512), nullable=True)  # for ticket link or external event page
-    source = Column(String(50), nullable=False)  # e.g. "eventbrite", "sportsdata"
+    source = Column(String(50), nullable=False)  # e.g. "google_events", "sportsbook"
     niche = Column(String(50), nullable=False)   # e.g. "Formula 1", "Hiking"

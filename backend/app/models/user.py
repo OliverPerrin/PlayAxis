@@ -13,5 +13,4 @@ class User(Base):
     full_name = Column(String, index=True)
     is_active = Column(Boolean, default=True)
     interests = relationship("Interest", secondary=user_interest, back_populates="users")
-    eventbrite_access_token = Column(String, nullable=True)
-    eventbrite_refresh_token = Column(String, nullable=True)
+    # Eventbrite columns removed; ensure corresponding Alembic migration updates the database if already applied.

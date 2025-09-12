@@ -1,34 +1,25 @@
 from fastapi import APIRouter, Query, Depends
 from typing import Optional, Dict, Any, List
-from app.services.eventbrite import get_eventbrite_events
+from app.services.google_events import fetch_google_events
 from app.services.sportsbook import get_sportsbook_events
 from app.core.dependencies import get_optional_user
 from app.models.user import User
 
 router = APIRouter()
 
-def normalize_eventbrite(ev: Dict[str, Any]) -> Dict[str, Any]:
-    venue = ev.get("venue") or {}
-    addr = venue.get("address") or {}
-    lat = venue.get("latitude")
-    lon = venue.get("longitude")
-    try:
-        lat = float(lat) if lat is not None else None
-        lon = float(lon) if lon is not None else None
-    except Exception:
-        lat = lon = None
+def normalize_google(ev_model) -> Dict[str, Any]:
     return {
-        "id": f"eventbrite:{ev.get('id')}",
-        "source": "eventbrite",
-        "title": (ev.get("name") or {}).get("text") or "",
-        "description": (ev.get("description") or {}).get("text") or "",
-        "start_time": (ev.get("start") or {}).get("local"),
-        "end_time": (ev.get("end") or {}).get("local"),
-        "latitude": lat,
-        "longitude": lon,
-        "city": addr.get("city"),
-        "country": addr.get("country"),
-        "url": ev.get("url"),
+        "id": f"google:{ev_model.id}",
+        "source": ev_model.source,
+        "title": ev_model.name,
+        "description": ev_model.description or "",
+        "start_time": ev_model.start,
+        "end_time": ev_model.end,
+        "latitude": ev_model.latitude,
+        "longitude": ev_model.longitude,
+        "city": ev_model.city,
+        "country": ev_model.country,
+        "url": ev_model.url,
     }
 
 def normalize_sportsbook(ev: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,8 +45,9 @@ async def aggregate_events(
     include_sports: bool = Query(default=True),
     current_user: User | None = Depends(get_optional_user),
 ):
-    eb_payload = await get_eventbrite_events(q, lat, lon, current_user)
-    eb_items = [normalize_eventbrite(e) for e in eb_payload.get("events", [])]
+    google_query = q or "Events near me"
+    google_events = await fetch_google_events(google_query)
+    google_items = [normalize_google(e) for e in google_events]
 
     sports_items: List[Dict[str, Any]] = []
     if include_sports:
@@ -69,4 +61,4 @@ async def aggregate_events(
                 continue
         sports_items = [normalize_sportsbook(e) for e in all_s]
 
-    return {"events": eb_items + sports_items}
+    return {"events": google_items + sports_items}

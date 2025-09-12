@@ -3,7 +3,7 @@ from typing import Optional, List
 
 
 class TicketClass(BaseModel):
-    """Subset of Eventbrite ticket class data we care about."""
+    """Generic ticket class structure (was originally aligned with Eventbrite)."""
     id: Optional[str] = None
     name: Optional[str] = None
     free: Optional[bool] = None

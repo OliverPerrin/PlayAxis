@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import re
 from app.core.config import settings
 from app.schemas.event import Event
+from app.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,8 @@ SERP_BASE = "https://serpapi.com/search.json"
 DATE_PATTERNS = [
     # Examples: 'Fri, Oct 7, 7 – 8 AM', 'Fri, Oct 7, 7 AM – 3 PM', 'Oct 1 – 10'
     re.compile(r"^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), )?(?P<month>[A-Z][a-z]{2}) (?P<day>\d{1,2})(?:, )?(?:(?P<start_time>\d{1,2}(?::\d{2})? ?[AP]M)(?: ?[–-] ?(?P<end_time>\d{1,2}(?::\d{2})? ?[AP]M))?)?"),
+    # Multi-day span like 'Oct 1 – 10'
+    re.compile(r"^(?P<month2>[A-Z][a-z]{2}) (?P<day_start>\d{1,2}) ?[–-] ?(?P<day_end>\d{1,2})$")
 ]
 
 MONTHS = {m: i for i, m in enumerate(["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], start=1)}
@@ -26,33 +29,49 @@ def _parse_when_to_iso(when_text: str) -> Tuple[Optional[str], Optional[str]]:
         m = pat.match(when_text)
         if not m:
             continue
-        month = m.group('month')
-        day = m.group('day')
-        if not month or not day:
-            continue
-        try:
-            month_num = MONTHS.get(month)
-            if not month_num:
+        # Pattern 1 (single day + optional times)
+        if m.groupdict().get('month'):
+            month = m.group('month')
+            day = m.group('day')
+            if not month or not day:
                 continue
-            year = now.year
-            # Handle year rollover (e.g., Dec searched in Jan might still be future, keep simple)
-            start_time_str = m.group('start_time')
-            end_time_str = m.group('end_time')
+            try:
+                month_num = MONTHS.get(month)
+                if not month_num:
+                    continue
+                year = now.year
+                start_time_str = m.group('start_time')
+                end_time_str = m.group('end_time')
 
-            def parse_time(t: Optional[str]):
-                if not t:
-                    return None
-                t = t.strip().upper()
-                # Normalize spacing
-                return datetime.strptime(f"{year}-{month_num:02d}-{int(day):02d} {t}", "%Y-%m-%d %I %p" if ':' not in t else "%Y-%m-%d %I:%M %p")
+                def parse_time(t: Optional[str]):
+                    if not t:
+                        return None
+                    t2 = t.strip().upper()
+                    fmt = "%Y-%m-%d %I %p" if ':' not in t2 else "%Y-%m-%d %I:%M %p"
+                    return datetime.strptime(f"{year}-{month_num:02d}-{int(day):02d} {t2}", fmt)
 
-            start_dt = parse_time(start_time_str) or datetime(year, month_num, int(day), 0, 0, 0)
-            end_dt = parse_time(end_time_str)
-            if end_dt and end_dt < start_dt:
-                end_dt += timedelta(hours=12)  # crude rollover if AM/PM inference odd
-            return start_dt.isoformat(), end_dt.isoformat() if end_dt else None
-        except Exception:
-            continue
+                start_dt = parse_time(start_time_str) or datetime(year, month_num, int(day), 0, 0, 0)
+                end_dt = parse_time(end_time_str)
+                if end_dt and end_dt < start_dt:
+                    end_dt += timedelta(hours=12)
+                return start_dt.isoformat(), end_dt.isoformat() if end_dt else None
+            except Exception:
+                continue
+        # Pattern 2 (multi-day span)
+        if m.groupdict().get('month2'):
+            month = m.group('month2')
+            day_start = m.group('day_start')
+            day_end = m.group('day_end')
+            try:
+                month_num = MONTHS.get(month)
+                if not month_num:
+                    continue
+                year = now.year
+                start_dt = datetime(year, month_num, int(day_start), 0, 0, 0)
+                end_dt = datetime(year, month_num, int(day_end), 23, 59, 59)
+                return start_dt.isoformat(), end_dt.isoformat()
+            except Exception:
+                continue
     return None, None
 
 async def _enrich_lat_lon(event_location_map: dict) -> Tuple[Optional[float], Optional[float]]:
@@ -63,21 +82,24 @@ async def _enrich_lat_lon(event_location_map: dict) -> Tuple[Optional[float], Op
     link = event_location_map.get('serpapi_link')
     if not link:
         return None, None
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(link)
-            if r.status_code != 200:
-                return None, None
-            js = r.json()
-            # Attempt to extract from 'place_results' or first result geometry
-            place = js.get('place_results') or js.get('place_result') or {}
-            lat = place.get('gps_coordinates', {}).get('latitude')
-            lon = place.get('gps_coordinates', {}).get('longitude')
-            if lat is not None and lon is not None:
-                return float(lat), float(lon)
-    except Exception:
-        return None, None
-    return None, None
+    cache_key = f"latlon:{link}"
+    async def producer():
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(link)
+                if r.status_code != 200:
+                    return (None, None)
+                js = r.json()
+                place = js.get('place_results') or js.get('place_result') or {}
+                lat = place.get('gps_coordinates', {}).get('latitude')
+                lon = place.get('gps_coordinates', {}).get('longitude')
+                if lat is not None and lon is not None:
+                    return (float(lat), float(lon))
+        except Exception:
+            return (None, None)
+        return (None, None)
+    latlon = await cache.get_or_set(cache_key, 3600, producer)  # cache 1 hour
+    return latlon
 
 async def fetch_google_events(query: str, start: int = 0, hl: Optional[str] = None, gl: Optional[str] = None, htichips: Optional[str] = None) -> List[Event]:
     """Fetch events using SerpApi Google Events engine and normalize into Event models.
