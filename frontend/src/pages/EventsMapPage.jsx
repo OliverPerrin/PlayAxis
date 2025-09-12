@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useContext } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvent } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getMe } from '../api';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -75,6 +76,12 @@ export default function EventsMapPage() {
   const [query, setQuery] = useState('');
 
   const center = useMemo(() => [me.lat, me.lon], [me.lat, me.lon]);
+  const eventIcon = useMemo(() => L.divIcon({
+    className: 'event-marker-wrapper',
+    html: '<div class="event-pin"></div>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  }), []);
 
   const [bbox, setBbox] = useState(null);
 
@@ -155,7 +162,7 @@ export default function EventsMapPage() {
           {(events || [])
             .filter(e => e.latitude != null && e.longitude != null)
             .map(e => (
-              <Marker key={e.id} position={[e.latitude, e.longitude]}>
+              <Marker key={e.id} position={[e.latitude, e.longitude]} icon={eventIcon}>
                 <Popup>
                   <div className="space-y-1 text-sm">
                     <div className={`font-semibold mb-1 ${isDark ? 'text-slate-900' : 'text-slate-900'}`}>{e.name || e.title || '(no title)'}</div>

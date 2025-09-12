@@ -12,13 +12,23 @@ const EventsPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [geo, setGeo] = useState({ lat: null, lon: null, tried: false });
+
+  useEffect(() => {
+    if (!navigator.geolocation) { setGeo(g => ({ ...g, tried: true })); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => setGeo({ lat: pos.coords.latitude, lon: pos.coords.longitude, tried: true }),
+      () => setGeo(g => ({ ...g, tried: true })),
+      { timeout: 8000 }
+    );
+  }, []);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
-        const data = await getEvents(q);
+        const data = await getEvents(q, geo.lat, geo.lon);
         if (!mounted) return;
         const list = Array.isArray(data?.events) ? data.events : [];
         setEvents(list);
@@ -30,7 +40,7 @@ const EventsPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [q]);
+  }, [q, geo.lat, geo.lon]);
 
   // Light/Dark adaptive styles similar to HomePage
   const surface = isDark
@@ -64,7 +74,7 @@ const EventsPage = () => {
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <MagnifyingGlassIcon className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${muted}`} />
             <input
@@ -74,6 +84,7 @@ const EventsPage = () => {
               className={`w-full pl-10 pr-4 py-3 rounded-xl outline-none transition ${inputCls}`}
             />
           </div>
+          <div className={`text-xs sm:text-sm ${muted} pl-1 sm:pl-0`}>{geo.lat != null ? 'Using your location for nearby events' : geo.tried ? 'Location unavailable (showing general results)' : 'Detecting location…'}</div>
         </div>
 
         {loading ? (

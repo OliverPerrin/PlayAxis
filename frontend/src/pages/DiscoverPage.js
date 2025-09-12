@@ -30,7 +30,7 @@ const DiscoverPage = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedLocation, setSelectedLocation] = useState('all');
+  const [selectedLocation, setSelectedLocation] = useState('nearby');
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('date');
   const [favorites, setFavorites] = useState(new Set());
@@ -43,9 +43,9 @@ const DiscoverPage = () => {
 
   // Init from URL
   useEffect(() => {
-    const q = searchParams.get('q') || '';
-    const cat = searchParams.get('cat') || 'all';
-    const loc = searchParams.get('loc') || 'all';
+  const q = searchParams.get('q') || '';
+  const cat = searchParams.get('cat') || 'all';
+  const loc = searchParams.get('loc') || 'nearby';
     const sort = searchParams.get('sort') || 'date';
     const view = searchParams.get('view') || 'grid';
 
@@ -62,7 +62,7 @@ const DiscoverPage = () => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('q', searchTerm);
     if (selectedCategory !== 'all') params.set('cat', selectedCategory);
-    if (selectedLocation !== 'all') params.set('loc', selectedLocation);
+  if (selectedLocation !== 'nearby') params.set('loc', selectedLocation);
     if (sortBy !== 'date') params.set('sort', sortBy === 'popularity' ? 'popular' : sortBy);
     if (viewMode !== 'grid') params.set('view', viewMode);
     const newStr = params.toString();
