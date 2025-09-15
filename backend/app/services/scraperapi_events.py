@@ -9,6 +9,7 @@ import asyncio
 import urllib.parse
 import re
 from datetime import datetime
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,53 @@ async def _geocode_query_fragment(fragment: str) -> Optional[tuple[float, float]
         pass
     await cache.set(key, None, 3600)
     return None
+
+MAX_EVENTS = 30
+
+def _looks_like_real_event(item: dict) -> bool:
+    if not isinstance(item, dict):
+        return False
+    title = (item.get('title') or item.get('name') or '').lower()
+    if not title:
+        return False
+    # Require some temporal signal
+    date_fields = [item.get('start_date'), item.get('date'), item.get('start_time'), item.get('when'), item.get('date_time')]
+    has_date = any(isinstance(v, str) and len(v) >= 4 for v in date_fields)
+    # Avoid broad portal pages (words like calendar, ticketmaster, eventbrite category, guide)
+    banned_keywords = ['calendar', 'tickets -', 'things to do', 'guide', 'best events', 'ticketmaster', 'eventbrite']
+    if any(k in title for k in banned_keywords):
+        return False
+    return has_date
+
+def _jsonld_events_from_soup(soup: BeautifulSoup) -> List[dict]:
+    results = []
+    for script in soup.find_all('script', type='application/ld+json'):
+        try:
+            data = json.loads(script.string or '')
+        except Exception:
+            continue
+        # Data can be dict or list
+        candidates = []
+        if isinstance(data, list):
+            candidates.extend(data)
+        elif isinstance(data, dict):
+            # Some pages nest graph
+            if '@graph' in data and isinstance(data['@graph'], list):
+                candidates.extend(data['@graph'])
+            else:
+                candidates.append(data)
+        for obj in candidates:
+            if not isinstance(obj, dict):
+                continue
+            t = obj.get('@type')
+            if isinstance(t, list):
+                is_event = any(tt.lower() == 'event' for tt in t if isinstance(tt, str))
+            else:
+                is_event = isinstance(t, str) and t.lower() == 'event'
+            if not is_event:
+                continue
+            results.append(obj)
+    return results
 
 async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en") -> List[Event]:
     """Fallback events fetch using ScraperAPI + Google HTML parsing.
@@ -127,7 +175,8 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
                                     title = o.get('title') or ''
                                     if 'event' in title.lower():
                                         candidates.append(o)
-                        for idx, item in enumerate(candidates[:40]):
+                        filtered = [c for c in candidates if _looks_like_real_event(c)] or candidates
+                        for idx, item in enumerate(filtered[:MAX_EVENTS]):
                             try:
                                 title = item.get('title') or item.get('name')
                                 if not title:
@@ -174,7 +223,7 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
         logger.info("scraperapi.structured events=%s query='%s'", len(structured_events), normalized_query)
         await cache.set(cache_key, structured_events, 300)
         await cache.set(last_good_key, structured_events, 900)
-        return structured_events
+    return structured_events[:MAX_EVENTS]
 
     # Fallback to raw HTML approach (previous implementation)
     google_q = urllib.parse.quote_plus(normalized_query)
@@ -232,7 +281,7 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
         if alt_cards:
             cards = [c.parent for c in alt_cards if c.parent]
     events: List[Event] = []
-    for c in cards[:40]:  # soft cap
+    for c in cards[:60]:  # collect more; we'll cap later
         try:
             title_el = c.find("div", class_=lambda v: v and "BNeawe" in v and "AP7Wnd" in v)
             date_el = None
@@ -304,7 +353,71 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
                 events[idx].latitude = lat
                 events[idx].longitude = lon
 
-    logger.info("scraperapi.events parsed=%s geocoded=%s query='%s'", len(events), sum(1 for e in events if e.latitude is not None), query)
+    # Augment with JSON-LD events on the page (higher fidelity if present)
+    jsonld = _jsonld_events_from_soup(soup)
+    for obj in jsonld:
+        try:
+            title = obj.get('name') or obj.get('title')
+            if not title:
+                continue
+            start_raw = obj.get('startDate') or obj.get('start_date') or obj.get('start_time') or obj.get('start')
+            start_iso = None
+            if isinstance(start_raw, str):
+                # Try direct ISO parse or fallback to normalization
+                start_iso = _normalize_date(start_raw) or start_raw
+            link = obj.get('url') or obj.get('@id')
+            ev = Event(
+                id=link or f"scraperapi_jsonld:{len(events)}:{title[:30]}",
+                source="scraperapi_jsonld",
+                name=title,
+                description=obj.get('description'),
+                url=link,
+                start=start_iso,
+                end=obj.get('endDate') if isinstance(obj.get('endDate'), str) else None,
+                timezone=None,
+                venue=(obj.get('location', {}) or {}).get('name') if isinstance(obj.get('location'), dict) else None,
+                city=None,
+                country=None,
+                latitude=None,
+                longitude=None,
+                category=None,
+                subcategory=None,
+                image=(obj.get('image') if isinstance(obj.get('image'), str) else None),
+                price=None,
+                capacity=None,
+                organizer=None,
+                is_tiered=None,
+                min_price=None,
+                max_price=None,
+                currency=None,
+                ticket_classes=None,
+            )
+            events.append(ev)
+        except Exception:
+            continue
+
+    # Deduplicate by (name + start) heuristic keeping earliest
+    dedup = {}
+    for ev in events:
+        key = (ev.name.lower(), ev.start or '')
+        if key not in dedup:
+            dedup[key] = ev
+    events = list(dedup.values())
+    # Filter again to those that look like real events if we have enough
+    if len(events) > 5:
+        filtered_objs = []
+        for ev in events:
+            has_date = bool(ev.start and len(ev.start) >= 4)
+            banned = any(k in ev.name.lower() for k in ['calendar','ticketmaster','eventbrite','things to do','guide'])
+            if has_date and not banned:
+                filtered_objs.append(ev)
+        if len(filtered_objs) >= 3:
+            events = filtered_objs
+
+    # Cap to MAX_EVENTS
+    events = events[:MAX_EVENTS]
+
+    logger.info("scraperapi.events parsed=%s geocoded=%s jsonld=%s query='%s'", len(events), sum(1 for e in events if e.latitude is not None), len(jsonld), query)
     # Cache only non-empty results for a short TTL (5 minutes)
     if events:
         await cache.set(cache_key, events, 300)
