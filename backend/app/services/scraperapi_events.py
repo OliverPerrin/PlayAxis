@@ -4,6 +4,7 @@ from typing import List, Optional
 from bs4 import BeautifulSoup
 from app.core.config import settings
 from app.schemas.event import Event
+from app.core.cache import cache
 import urllib.parse
 import re
 
@@ -25,52 +26,26 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
         return []
 
     base = settings.SCRAPERAPI_BASE_URL.rstrip('/') or "https://api.scraperapi.com/"
+    cache_key = f"scrape_ev:{hl}:{gl}:{query.strip().lower()}"
+
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    google_q = urllib.parse.quote_plus(query)
+    target = f"https://www.google.com/search?q={google_q}&hl={hl}&gl={gl}"
+    params = {"api_key": api_key, "url": target}
 
     html: Optional[str] = None
-    last_error: Optional[str] = None
-
-    async def attempt_engine_style(client: httpx.AsyncClient) -> Optional[str]:
-        params = {
-            "api_key": api_key,
-            "engine": "google",
-            "q": query,
-            "hl": hl,
-            "gl": gl,
-        }
-        try:
-            r = await client.get(base, params=params)
-            if r.status_code == 200:
-                return r.text
-            logger.warning("ScraperAPI engine attempt failed status=%s body=%s", r.status_code, r.text[:150])
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("ScraperAPI engine attempt exception: %s", exc)
-        return None
-
-    async def attempt_url_style(client: httpx.AsyncClient) -> Optional[str]:
-        # Classic ScraperAPI pattern: pass target URL
-        google_q = urllib.parse.quote_plus(query)
-        target = f"https://www.google.com/search?q={google_q}&hl={hl}&gl={gl}"
-        params = {
-            "api_key": api_key,
-            "url": target,
-            # Optional: set country via 'country_code' but gl param in target often suffices.
-        }
-        try:
-            r = await client.get(base, params=params)
-            if r.status_code == 200:
-                return r.text
-            logger.warning("ScraperAPI url attempt failed status=%s body=%s", r.status_code, r.text[:150])
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("ScraperAPI url attempt exception: %s", exc)
-        return None
-
     try:
         async with httpx.AsyncClient(timeout=20.0, headers={"User-Agent": USER_AGENT}) as client:
-            html = await attempt_engine_style(client)
-            if html is None:
-                html = await attempt_url_style(client)
+            r = await client.get(base, params=params)
+            if r.status_code != 200:
+                logger.warning("ScraperAPI fetch failed status=%s body=%s", r.status_code, r.text[:160])
+                return []
+            html = r.text
     except Exception as exc:  # noqa: BLE001
-        logger.exception("ScraperAPI requests failed: %s", exc)
+        logger.exception("ScraperAPI request exception: %s", exc)
         return []
 
     if not html:
@@ -140,4 +115,7 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
             continue
 
     logger.info("scraperapi.events parsed=%s query='%s'", len(events), query)
+    # Cache only non-empty results for a short TTL (5 minutes)
+    if events:
+        await cache.set(cache_key, events, 300)
     return events
