@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from app.core.config import settings
 from app.schemas.event import Event
 from app.core.cache import cache
+import asyncio
 import urllib.parse
 import re
 
@@ -13,6 +14,27 @@ logger = logging.getLogger(__name__)
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
 DATE_RE = re.compile(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun),? ?[A-Z][a-z]{2} \d{1,2}.*")
+
+async def _geocode_query_fragment(fragment: str) -> Optional[tuple[float, float]]:
+    """Best-effort forward geocode using Nominatim (cached)."""
+    key = f"fwdgeo:{fragment.lower()}"
+    cached = await cache.get(key)
+    if cached is not None:
+        return cached
+    try:
+        async with httpx.AsyncClient(timeout=8.0, headers={"User-Agent": "PlayAxisEvents/1.0 (contact: support@playaxis.local)"}) as client:
+            r = await client.get("https://nominatim.openstreetmap.org/search", params={"q": fragment, "format": "json", "limit": 1})
+            if r.status_code == 200:
+                data = r.json()
+                if data:
+                    lat = float(data[0]["lat"])
+                    lon = float(data[0]["lon"])
+                    await cache.set(key, (lat, lon), 86400)
+                    return lat, lon
+    except Exception:
+        pass
+    await cache.set(key, None, 3600)
+    return None
 
 async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en") -> List[Event]:
     """Fallback events fetch using ScraperAPI + Google HTML parsing.
@@ -114,7 +136,30 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
         except Exception:
             continue
 
-    logger.info("scraperapi.events parsed=%s query='%s'", len(events), query)
+    # Attempt minimal geocoding of first few events (heuristic: append "city" tokens from title)
+    to_geocode: List[tuple[int, str]] = []
+    for idx, ev in enumerate(events[:5]):
+        # very naive extraction: look for ' in City' pattern or split last comma segment
+        title_lower = ev.name.lower()
+        candidate = None
+        if ' in ' in title_lower:
+            candidate = ev.name.split(' in ', 1)[-1].strip()
+        elif ',' in ev.name:
+            segs = [s.strip() for s in ev.name.split(',') if len(s.strip()) > 2]
+            if segs:
+                candidate = segs[-1]
+        if candidate and 3 <= len(candidate) <= 60:
+            to_geocode.append((idx, candidate))
+    if to_geocode:
+        tasks = [ _geocode_query_fragment(frag) for _, frag in to_geocode ]
+        results = await asyncio.gather(*tasks)
+        for (idx, _frag), loc in zip(to_geocode, results):
+            if loc and events[idx].latitude is None:
+                lat, lon = loc
+                events[idx].latitude = lat
+                events[idx].longitude = lon
+
+    logger.info("scraperapi.events parsed=%s geocoded=%s query='%s'", len(events), sum(1 for e in events if e.latitude is not None), query)
     # Cache only non-empty results for a short TTL (5 minutes)
     if events:
         await cache.set(cache_key, events, 300)
