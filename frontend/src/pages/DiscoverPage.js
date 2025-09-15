@@ -249,7 +249,22 @@ const DiscoverPage = () => {
         ) : null}
       </div>
 
-      <div className="px-6 pb-6">
+      <div className="px-6 pb-6 space-y-3">
+        {event.url && (
+          <a
+            href={event.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-cyan-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 text-sm"
+            aria-label={`Open source site for ${event.title}`}
+          >
+            <span>View Source Site</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5M21 3l-9 9m0 0V7.5m0 4.5H16.5" />
+            </svg>
+          </a>
+        )}
         <button className="w-full py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300">
           {event.maxParticipants && event.participants >= event.maxParticipants ? 'Waitlist' : 'Join Event'}
         </button>

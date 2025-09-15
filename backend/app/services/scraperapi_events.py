@@ -65,6 +65,47 @@ async def _geocode_query_fragment(fragment: str) -> Optional[tuple[float, float]
 
 MAX_EVENTS = 30
 
+def _normalize_link(raw: Optional[str]) -> Optional[str]:
+    """Best-effort cleanup of scraped links.
+
+    - Unwrap Google redirect patterns like /url? or https://www.google.com/url? with 'q=' param.
+    - Ensure https scheme for protocol-relative links.
+    - Drop fragments (#...) to avoid duplicate ids.
+    - Basic validation to avoid javascript: or mailto: schemes.
+    """
+    if not raw or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    # Protocol-relative
+    if raw.startswith('//'):
+        raw = 'https:' + raw
+    # Google redirect e.g. /url?q=https://site.com&sa=... OR full google domain
+    try:
+        if raw.startswith('/url?') or '://www.google.' in raw and '/url?' in raw:
+            parsed_outer = urllib.parse.urlparse(raw)
+            # If path is /url, parse query param q
+            qs = urllib.parse.parse_qs(parsed_outer.query)
+            qvals = qs.get('q') or qs.get('url') or []
+            if qvals:
+                candidate = qvals[0]
+                if candidate:
+                    raw = candidate
+        # At this point raw should be target URL or original.
+        parsed = urllib.parse.urlparse(raw)
+        if parsed.scheme in ('http','https'):
+            # Rebuild without fragment to keep ids stable
+            cleaned = parsed._replace(fragment='')
+            return urllib.parse.urlunparse(cleaned)
+        if parsed.scheme == '' and parsed.netloc:
+            # Missing scheme but has netloc
+            return f"https://{parsed.netloc}{parsed.path or ''}"
+        # Reject javascript/mailto/etc
+        if parsed.scheme in ('javascript','data','mailto'):
+            return None
+    except Exception:
+        return raw  # fallback to original (better than nothing)
+    return raw
+
 def _looks_like_real_event(item: dict) -> bool:
     if not isinstance(item, dict):
         return False
@@ -181,12 +222,16 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
                                 title = item.get('title') or item.get('name')
                                 if not title:
                                     continue
-                                link = item.get('link') or item.get('url')
+                                link = _normalize_link(item.get('link') or item.get('url'))
                                 start_raw = item.get('start_date') or item.get('date') or item.get('start_time')
                                 end_raw = item.get('end_date') or item.get('end_time')
                                 start_iso = None
                                 if isinstance(start_raw, str):
                                     start_iso = _normalize_date(start_raw) or start_raw
+                                # Synthetic link if none: Google search for the title + query context
+                                if not link:
+                                    google_search_q = urllib.parse.quote_plus(f"{title} {query}")
+                                    link = f"https://www.google.com/search?q={google_search_q}"
                                 structured_events.append(Event(
                                     id=link or f"scraperapi_struct:{idx}:{title[:30]}",
                                     source="scraperapi_structured",
@@ -295,12 +340,17 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
             title = title_el.get_text(strip=True) if title_el else None
             date_text = date_el.get_text(strip=True) if date_el else None
             link = link_el.get("href") if link_el else None
+            link = _normalize_link(link)
             if not title:
                 continue
             # Basic normalization: id chooses link or title+index
             start_iso = None
             if date_text:
                 start_iso = _normalize_date(date_text) or date_text
+            if not link:
+                # Provide synthetic google search link to keep card actionable
+                gs_q = urllib.parse.quote_plus(f"{title} {query}")
+                link = f"https://www.google.com/search?q={gs_q}"
             events.append(Event(
                 id=link or f"scraperapi:{len(events)}:{title[:30]}",
                 source="scraperapi_google",
@@ -366,6 +416,10 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
                 # Try direct ISO parse or fallback to normalization
                 start_iso = _normalize_date(start_raw) or start_raw
             link = obj.get('url') or obj.get('@id')
+            link = _normalize_link(link)
+            if not link:
+                gs_q = urllib.parse.quote_plus(f"{title} {query}")
+                link = f"https://www.google.com/search?q={gs_q}"
             ev = Event(
                 id=link or f"scraperapi_jsonld:{len(events)}:{title[:30]}",
                 source="scraperapi_jsonld",
