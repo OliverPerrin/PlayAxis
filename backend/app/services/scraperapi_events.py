@@ -4,7 +4,7 @@ from typing import List, Optional
 from bs4 import BeautifulSoup
 from app.core.config import settings
 from app.schemas.event import Event
-from datetime import datetime
+import urllib.parse
 import re
 
 logger = logging.getLogger(__name__)
@@ -24,28 +24,53 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
         logger.warning("SCRAPERAPI_API_KEY missing; returning empty list (fallback disabled)")
         return []
 
-    base = settings.SCRAPERAPI_BASE_URL.rstrip('/')
-    params = {
-        "api_key": api_key,
-        "engine": "google",
-        "q": query,
-        "hl": hl,
-        "gl": gl,
-    }
-    # Build manual query string (avoid httpx enc doing '+' vs '%20' differences for consistency)
-    query_str = "&".join(f"{k}={httpx.QueryParams({k:v})[k]}" for k,v in params.items())
-    url = f"{base}?{query_str}"
+    base = settings.SCRAPERAPI_BASE_URL.rstrip('/') or "http://api.scraperapi.com"
 
     html: Optional[str] = None
+    last_error: Optional[str] = None
+
+    async def attempt_engine_style(client: httpx.AsyncClient) -> Optional[str]:
+        params = {
+            "api_key": api_key,
+            "engine": "google",
+            "q": query,
+            "hl": hl,
+            "gl": gl,
+        }
+        try:
+            r = await client.get(base, params=params)
+            if r.status_code == 200:
+                return r.text
+            logger.warning("ScraperAPI engine attempt failed status=%s body=%s", r.status_code, r.text[:150])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ScraperAPI engine attempt exception: %s", exc)
+        return None
+
+    async def attempt_url_style(client: httpx.AsyncClient) -> Optional[str]:
+        # Classic ScraperAPI pattern: pass target URL
+        google_q = urllib.parse.quote_plus(query)
+        target = f"https://www.google.com/search?q={google_q}&hl={hl}&gl={gl}"
+        params = {
+            "api_key": api_key,
+            "url": target,
+            # Optional: set country via 'country_code' but gl param in target often suffices.
+        }
+        try:
+            r = await client.get(base, params=params)
+            if r.status_code == 200:
+                return r.text
+            logger.warning("ScraperAPI url attempt failed status=%s body=%s", r.status_code, r.text[:150])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ScraperAPI url attempt exception: %s", exc)
+        return None
+
     try:
-        async with httpx.AsyncClient(timeout=18.0, headers={"User-Agent": USER_AGENT}) as client:
-            r = await client.get(url)
-            if r.status_code != 200:
-                logger.error("ScraperAPI HTML fetch failed status=%s body=%s", r.status_code, r.text[:160])
-                return []
-            html = r.text
-    except Exception as exc:
-        logger.exception("ScraperAPI request failed: %s", exc)
+        async with httpx.AsyncClient(timeout=20.0, headers={"User-Agent": USER_AGENT}) as client:
+            html = await attempt_engine_style(client)
+            if html is None:
+                html = await attempt_url_style(client)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("ScraperAPI requests failed: %s", exc)
         return []
 
     if not html:
@@ -58,6 +83,11 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
 
     # Google Events pack often uses role=listitem on cards; this can change.
     cards = soup.find_all("div", attrs={"role": "listitem"})
+    if not cards:
+        # Heuristic alternative: look for knowledge panel style container
+        alt_cards = soup.select("div[aria-level] div.BNeawe")
+        if alt_cards:
+            cards = [c.parent for c in alt_cards if c.parent]
     events: List[Event] = []
     for c in cards[:40]:  # soft cap
         try:
