@@ -1,6 +1,6 @@
 import logging
 import httpx
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from bs4 import BeautifulSoup
 from app.core.config import settings
 from app.schemas.event import Event
@@ -8,12 +8,38 @@ from app.core.cache import cache
 import asyncio
 import urllib.parse
 import re
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
-DATE_RE = re.compile(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun),? ?[A-Z][a-z]{2} \d{1,2}.*")
+DATE_RE = re.compile(r"^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),? ?([A-Z][a-z]{2}) (\d{1,2})(.*)$")
+
+MONTH_MAP = {m: i for i, m in enumerate(["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], start=1)}
+
+def _normalize_date(raw: str) -> Optional[str]:
+    """Attempt to convert scraped date text into ISO-8601 local-date placeholder (no TZ)."""
+    m = DATE_RE.match(raw)
+    if not m:
+        return None
+    mon_abbr = m.group(2)
+    day = m.group(3)
+    try:
+        month = MONTH_MAP.get(mon_abbr)
+        if not month:
+            return None
+        year = datetime.utcnow().year
+        # If date already passed this year by more than ~30 days assume next year (rough heuristic)
+        try:
+            parsed = datetime(year, month, int(day))
+            if (datetime.utcnow() - parsed).days > 30:
+                parsed = datetime(year + 1, month, int(day))
+        except ValueError:
+            return None
+        return parsed.isoformat()
+    except Exception:
+        return None
 
 async def _geocode_query_fragment(fragment: str) -> Optional[tuple[float, float]]:
     """Best-effort forward geocode using Nominatim (cached)."""
@@ -49,6 +75,18 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
 
     base = settings.SCRAPERAPI_BASE_URL.rstrip('/') or "https://api.scraperapi.com/"
     cache_key = f"scrape_ev:{hl}:{gl}:{query.strip().lower()}"
+    last_good_key = f"scrape_last_good:{hl}:{gl}:{query.strip().lower()}"
+    cooldown_key = "scraperapi:429_cooldown"
+
+    # If in cooldown due to prior 429, return cached/stale immediately
+    if await cache.get(cooldown_key):
+        cached_good = await cache.get(last_good_key)
+        if cached_good:
+            return cached_good
+        cached = await cache.get(cache_key)
+        if cached:
+            return cached
+        return []
 
     cached = await cache.get(cache_key)
     if cached is not None:
@@ -59,16 +97,39 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
     params = {"api_key": api_key, "url": target}
 
     html: Optional[str] = None
-    try:
-        async with httpx.AsyncClient(timeout=20.0, headers={"User-Agent": USER_AGENT}) as client:
-            r = await client.get(base, params=params)
-            if r.status_code != 200:
-                logger.warning("ScraperAPI fetch failed status=%s body=%s", r.status_code, r.text[:160])
+    timeouts = [8.0, 16.0]  # two attempts: fast then longer
+    for attempt, t in enumerate(timeouts, start=1):
+        try:
+            async with httpx.AsyncClient(timeout=t, headers={"User-Agent": USER_AGENT}) as client:
+                r = await client.get(base, params=params)
+                if r.status_code == 429:
+                    logger.warning("ScraperAPI fetch failed status=429 (rate limited) query='%s' attempt=%s", query, attempt)
+                    # Set short cooldown
+                    await cache.set(cooldown_key, True, 90)
+                    # Return stale if available
+                    stale = await cache.get(last_good_key)
+                    if stale:
+                        return stale
+                    return []
+                if r.status_code != 200:
+                    logger.warning("ScraperAPI fetch failed status=%s body=%s", r.status_code, r.text[:160])
+                    # Non-200: retry if attempt 1 else bail with stale
+                    if attempt == len(timeouts):
+                        stale = await cache.get(last_good_key)
+                        if stale:
+                            return stale
+                        return []
+                    continue
+                html = r.text
+                break
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ScraperAPI attempt=%s exception: %s", attempt, exc)
+            if attempt == len(timeouts):
+                stale = await cache.get(last_good_key)
+                if stale:
+                    return stale
                 return []
-            html = r.text
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("ScraperAPI request exception: %s", exc)
-        return []
+            continue
 
     if not html:
         return []
@@ -105,8 +166,7 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
             # Basic normalization: id chooses link or title+index
             start_iso = None
             if date_text:
-                # Keep raw; optional naive conversion if recognizable (skipped for simplicity)
-                start_iso = date_text
+                start_iso = _normalize_date(date_text) or date_text
             events.append(Event(
                 id=link or f"scraperapi:{len(events)}:{title[:30]}",
                 source="scraperapi_google",
@@ -163,4 +223,5 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
     # Cache only non-empty results for a short TTL (5 minutes)
     if events:
         await cache.set(cache_key, events, 300)
+        await cache.set(last_good_key, events, 900)  # 15 min stale window
     return events

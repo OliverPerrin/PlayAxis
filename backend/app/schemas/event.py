@@ -46,6 +46,19 @@ class Event(BaseModel):
 class EventsResponse(BaseModel):
     total: int
     data: List[Event]
+    # Backwards compatibility alias used by frontend (some code expects 'events')
+    events: Optional[List[Event]] = None
+    # Diagnostic / mode flags
+    serpapi_exhausted: Optional[bool] = None
+    scraper_fallback: Optional[bool] = None
+    scraper_limited: Optional[bool] = None
+    # When viewport requested we can include it (dynamic injection)
+    viewport: Optional[dict] = None
+
+    def model_post_init(self, __context):  # type: ignore[override]
+        # Ensure 'events' mirrors 'data' if not explicitly provided
+        if self.events is None:
+            object.__setattr__(self, 'events', self.data)
 
 
 def compute_viewport(events: List[Event]) -> dict:

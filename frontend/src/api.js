@@ -112,10 +112,15 @@ export const getEvents = async (query = '', lat = null, lon = null, extra = {}) 
       const data2 = await handleResponse(res2);
       list = Array.isArray(data2?.events) ? data2.events : (Array.isArray(data2?.data) ? data2.data : []);
     }
-    return { events: list.map((e, i) => normalizeEventItem(e, i)) };
+    const flags = {
+      serpapi_exhausted: !!data.serpapi_exhausted,
+      scraper_fallback: !!data.scraper_fallback,
+      scraper_limited: !!data.scraper_limited,
+    };
+    return { events: list.map((e, i) => normalizeEventItem(e, i)), ...flags };
   } catch (e) {
     console.error('getEvents error:', e);
-    return { events: [] };
+    return { events: [], serpapi_exhausted: false, scraper_fallback: false, scraper_limited: false };
   }
 };
 

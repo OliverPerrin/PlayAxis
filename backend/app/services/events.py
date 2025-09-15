@@ -226,6 +226,8 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                 serp_rate_limited = True
                 await cache.set("serpapi:rate_limited", True, 60*60*12)
                 logger.warning("SerpApi quota exhausted (final broad attempt); switching to fallback.")
+        scraper_used = False
+        scraper_limited = False
         if not events:
             # 2. ScraperAPI HTML fallback (best-effort) using a localized or base query.
             fallback_query = base_query
@@ -238,6 +240,10 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
             scraped = await fetch_events_via_scraperapi(fallback_query)
             if scraped:
                 events.extend(scraped)
+                scraper_used = True
+                # Heuristic: if we got fewer than 3, mark limited to display a UI hint
+                if len(scraped) < 3:
+                    scraper_limited = True
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
             events_all = events[:]
@@ -288,7 +294,13 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
             if hasattr(ev, '_distance_km') and ev._distance_km is not None:
                 # monkey-patch attribute for consumer (FastAPI will include since pydantic by default excludes unknown, so we may later extend schema)
                 setattr(ev, 'distance_km', round(ev._distance_km, 2))
-        return EventsResponse(total=len(trimmed), data=trimmed)
+        return EventsResponse(
+            total=len(trimmed),
+            data=trimmed,
+            serpapi_exhausted=serp_rate_limited or None,
+            scraper_fallback=scraper_used or None,
+            scraper_limited=scraper_limited or None,
+        )
 
     cached = await cache.get(key)
     if cached:
