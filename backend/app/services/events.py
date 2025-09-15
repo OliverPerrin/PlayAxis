@@ -7,6 +7,7 @@ import json
 from app.schemas.event import Event, EventsResponse
 import logging
 from app.services.google_events import fetch_google_events
+from app.services.scraperapi_events import fetch_events_via_scraperapi
 from app.core.cache import cache
 
 EVENTS_CACHE_TTL = 180  # seconds
@@ -195,10 +196,23 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                         break
                 if events:
                     break
-        # Final safety fallback: if still no results, broad base query without location
+        # Final safety fallback hierarchy:
         if not events:
+            # 1. Attempt another broad SerpApi call without location.
             fallback_batch = await fetch_google_events(query=base_query, start=max(0, (page - 1) * 10), htichips=htichips, location=None, enrich_limit=enrich_limit_global)
             events.extend(fallback_batch)
+        if not events:
+            # 2. ScraperAPI HTML fallback (best-effort) using a localized or base query.
+            fallback_query = base_query
+            if user_lat is not None and user_lon is not None and used_city_state and used_city_state[0]:
+                city, state = used_city_state
+                if city and state:
+                    fallback_query = f"events in {city} {state}"
+                elif city:
+                    fallback_query = f"events in {city}"
+            scraped = await fetch_events_via_scraperapi(fallback_query)
+            if scraped:
+                events.extend(scraped)
         # Filter by bounding box if provided
         if None not in (min_lat, max_lat, min_lon, max_lon):
             events_all = events[:]

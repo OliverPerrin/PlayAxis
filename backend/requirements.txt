@@ -49,3 +49,4 @@ jmespath
 urllib3
 certifi
 click
+beautifulsoup4

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     GOOGLE_EVENTS_HL: str = "en"  # language
     GOOGLE_EVENTS_GL: str = "us"  # country
 
+    # ScraperAPI (HTML scraping fallback for Google events)
+    SCRAPERAPI_API_KEY: str | None = None
+    SCRAPERAPI_BASE_URL: str = "https://api.scraperapi.com"
+
     # API URLs
     WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
     TWITCH_API_URL: str = "https://api.twitch.tv/helix/"
