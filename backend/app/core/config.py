@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # ScraperAPI (HTML scraping fallback for Google events)
     SCRAPERAPI_API_KEY: str | None = None
-    SCRAPERAPI_BASE_URL: str = "http://api.scraperapi.com"
+    SCRAPERAPI_BASE_URL: str = "https://api.scraperapi.com/"
 
     # API URLs
     WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
