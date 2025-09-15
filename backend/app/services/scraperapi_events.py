@@ -24,7 +24,7 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
         logger.warning("SCRAPERAPI_API_KEY missing; returning empty list (fallback disabled)")
         return []
 
-    base = settings.SCRAPERAPI_BASE_URL.rstrip('/') or "http://api.scraperapi.com"
+    base = settings.SCRAPERAPI_BASE_URL.rstrip('/') or "https://api.scraperapi.com/"
 
     html: Optional[str] = None
     last_error: Optional[str] = None
