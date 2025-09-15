@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRightIcon, CheckIcon, UserPlusIcon, MapIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, CheckIcon, UserPlusIcon, MapIcon, BoltIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { ThemeContext } from '../contexts/ThemeContext';
 
 const FEATURES = [
@@ -13,7 +13,7 @@ const FEATURES = [
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { theme } = useContext(ThemeContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
   // Shared style tokens similar to other pages
@@ -44,9 +44,19 @@ const LandingPage = () => {
             <img src="/logo-mark.svg" alt="PlayAxis" className="w-10 h-10 rounded-xl" />
             <span className={`text-2xl font-bold ${navBrand}`}>PlayAxis</span>
           </button>
-          <button onClick={() => navigate('/auth')} className={`px-5 py-2.5 rounded-xl transition-colors ${navBtn}`}>
-            Sign In
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label="Toggle light/dark mode"
+              className={`p-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/60 ${navBtn} flex items-center justify-center w-11 h-11`}
+            >
+              {isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+            </button>
+            <button onClick={() => navigate('/auth')} className={`px-5 py-2.5 rounded-xl transition-colors ${navBtn}`}>
+              Sign In
+            </button>
+          </div>
         </div>
       </nav>
 
