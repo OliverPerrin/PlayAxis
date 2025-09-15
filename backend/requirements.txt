@@ -34,11 +34,8 @@ uvloop
 watchfiles
 websockets
 python-jose[cryptography]
-passlib[bcrypt]
-passlib
-jose
-bcrypt
-python-multipart
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 cloudinary
 requests
 gunicorn
@@ -47,6 +44,4 @@ botocore
 s3transfer
 jmespath
 urllib3
-certifi
-click
 beautifulsoup4
