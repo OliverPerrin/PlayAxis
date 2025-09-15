@@ -92,7 +92,92 @@ async def fetch_events_via_scraperapi(query: str, gl: str = "us", hl: str = "en"
     if cached is not None:
         return cached
 
-    google_q = urllib.parse.quote_plus(query)
+    # Ensure query encourages event vertical
+    normalized_query = query.strip()
+    if 'event' not in normalized_query.lower():
+        normalized_query = f"events {normalized_query}".strip()
+
+    # Attempt 1: Structured Google Search endpoint (JSON) -> faster & lighter if it includes events.
+    structured_endpoint = f"{base}/structured/google/search"
+    struct_params = {"api_key": api_key, "query": normalized_query, "hl": hl, "gl": gl}
+    structured_events: List[Event] = []
+    if not await cache.get(cooldown_key):  # skip if cooling down due to previous rate limit
+        try:
+            async with httpx.AsyncClient(timeout=8.0, headers={"User-Agent": USER_AGENT}) as client:
+                sr = await client.get(structured_endpoint, params=struct_params)
+                if sr.status_code == 429:
+                    await cache.set(cooldown_key, True, 90)
+                elif sr.status_code == 200:
+                    try:
+                        payload = sr.json()
+                        # Common possible locations for events data
+                        candidates: List[dict] = []
+                        if isinstance(payload, dict):
+                            if isinstance(payload.get('events_results'), list):
+                                candidates.extend(payload['events_results'])
+                            # Some variants nest inside knowledge_graph
+                            kg = payload.get('knowledge_graph') or {}
+                            if isinstance(kg, dict) and isinstance(kg.get('events'), list):
+                                candidates.extend(kg['events'])
+                            # Fallback: try organic results if very event-like
+                            if not candidates and isinstance(payload.get('organic_results'), list):
+                                for o in payload['organic_results']:
+                                    if not isinstance(o, dict):
+                                        continue
+                                    title = o.get('title') or ''
+                                    if 'event' in title.lower():
+                                        candidates.append(o)
+                        for idx, item in enumerate(candidates[:40]):
+                            try:
+                                title = item.get('title') or item.get('name')
+                                if not title:
+                                    continue
+                                link = item.get('link') or item.get('url')
+                                start_raw = item.get('start_date') or item.get('date') or item.get('start_time')
+                                end_raw = item.get('end_date') or item.get('end_time')
+                                start_iso = None
+                                if isinstance(start_raw, str):
+                                    start_iso = _normalize_date(start_raw) or start_raw
+                                structured_events.append(Event(
+                                    id=link or f"scraperapi_struct:{idx}:{title[:30]}",
+                                    source="scraperapi_structured",
+                                    name=title,
+                                    description=(item.get('description') or None),
+                                    url=link,
+                                    start=start_iso,
+                                    end=end_raw if isinstance(end_raw, str) else None,
+                                    timezone=None,
+                                    venue=item.get('venue') or item.get('location') or None,
+                                    city=None,
+                                    country=None,
+                                    latitude=None,
+                                    longitude=None,
+                                    category=None,
+                                    subcategory=None,
+                                    image=(item.get('image') if isinstance(item.get('image'), str) else None),
+                                    price=None,
+                                    capacity=None,
+                                    organizer=None,
+                                    is_tiered=None,
+                                    min_price=None,
+                                    max_price=None,
+                                    currency=None,
+                                    ticket_classes=None,
+                                ))
+                            except Exception:
+                                continue
+                    except Exception as ex:
+                        logger.debug("Structured scrape JSON parse error: %s", ex)
+        except Exception as ex:
+            logger.debug("Structured endpoint exception: %s", ex)
+    if structured_events:
+        logger.info("scraperapi.structured events=%s query='%s'", len(structured_events), normalized_query)
+        await cache.set(cache_key, structured_events, 300)
+        await cache.set(last_good_key, structured_events, 900)
+        return structured_events
+
+    # Fallback to raw HTML approach (previous implementation)
+    google_q = urllib.parse.quote_plus(normalized_query)
     target = f"https://www.google.com/search?q={google_q}&hl={hl}&gl={gl}"
     params = {"api_key": api_key, "url": target}
 
