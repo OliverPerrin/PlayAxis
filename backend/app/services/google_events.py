@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 
 SERP_BASE = "https://serpapi.com/search.json"
 
+
+class SerpApiRateLimitError(Exception):
+    """Raised when SerpApi responds with a hard rate limit (HTTP 429)."""
+    pass
+
 DATE_PATTERNS = [
     # Examples: 'Fri, Oct 7, 7 – 8 AM', 'Fri, Oct 7, 7 AM – 3 PM', 'Oct 1 – 10'
     re.compile(r"^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), )?(?P<month>[A-Z][a-z]{2}) (?P<day>\d{1,2})(?:, )?(?:(?P<start_time>\d{1,2}(?::\d{2})? ?[AP]M)(?: ?[–-] ?(?P<end_time>\d{1,2}(?::\d{2})? ?[AP]M))?)?"),
@@ -179,10 +184,15 @@ async def fetch_google_events(query: str,
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             r = await client.get(SERP_BASE, params=params)
+            if r.status_code == 429:
+                logger.warning("SerpApi rate limit (429) for q='%s'", query)
+                raise SerpApiRateLimitError()
             if r.status_code != 200:
                 logger.error("SerpApi google_events error status=%s body=%s", r.status_code, r.text[:200])
                 return []
             data = r.json()
+    except SerpApiRateLimitError:
+        raise
     except Exception as exc:
         logger.exception("SerpApi request failed: %s", exc)
         return []

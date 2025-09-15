@@ -6,7 +6,7 @@ import hashlib
 import json
 from app.schemas.event import Event, EventsResponse
 import logging
-from app.services.google_events import fetch_google_events
+from app.services.google_events import fetch_google_events, SerpApiRateLimitError
 from app.services.scraperapi_events import fetch_events_via_scraperapi
 from app.core.cache import cache
 
@@ -147,14 +147,26 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
         # events with coordinates that fall inside the bbox for map markers.
         MAX_REQUESTS = 10 if None not in (min_lat, max_lat, min_lon, max_lon) else 6
         start_offsets = [max(0, (page - 1) * 10), max(0, (page - 1) * 10) + 10]
+        serp_rate_limited = bool(await cache.get("serpapi:rate_limited"))
+        if serp_rate_limited:
+            logger.info("SerpApi on cooldown (rate limited previously); skipping SerpApi queries this request.")
         for idx, qstr in enumerate(queries):
             if requests_used >= MAX_REQUESTS:
                 break
             for off in start_offsets:
                 if requests_used >= MAX_REQUESTS:
                     break
-                # Use higher enrichment when viewport is present so more items gain coordinates for markers.
-                batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=location_param, no_cache=True, enrich_limit=enrich_limit_global)
+                if serp_rate_limited:
+                    break
+                try:
+                    # Use higher enrichment when viewport is present so more items gain coordinates for markers.
+                    batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=location_param, no_cache=True, enrich_limit=enrich_limit_global)
+                except SerpApiRateLimitError:
+                    serp_rate_limited = True
+                    # set a short cooldown (e.g., 12 hours) to skip SerpApi until quota refresh; can adjust
+                    await cache.set("serpapi:rate_limited", True, 60*60*12)
+                    logger.warning("SerpApi quota exhausted; switching to fallback.")
+                    break
                 requests_used += 1
                 logger.info("events.fetch q='%s' loc='%s' start=%s -> %s", qstr, location_param, off, len(batch))
                 for ev in batch:
@@ -182,10 +194,18 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                     break
         events = aggregated
         # If localized aggregation yielded no results and we used a location, retry queries without location (with pagination)
-        if not events and location_param:
+        if not events and location_param and not serp_rate_limited:
             for idx, qstr in enumerate(queries):
                 for off in start_offsets:
-                    batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=None, enrich_limit=enrich_limit_global)
+                    if serp_rate_limited:
+                        break
+                    try:
+                        batch = await fetch_google_events(query=qstr, start=off, htichips=htichips, location=None, enrich_limit=enrich_limit_global)
+                    except SerpApiRateLimitError:
+                        serp_rate_limited = True
+                        await cache.set("serpapi:rate_limited", True, 60*60*12)
+                        logger.warning("SerpApi quota exhausted (retry phase); switching to fallback.")
+                        break
                     logger.info("events.retry-no-loc q='%s' start=%s -> %s", qstr, off, len(batch))
                     for ev in batch:
                         if ev.id in seen_ids:
@@ -197,10 +217,15 @@ async def aggregate_events(query: str = "", page: int = 1, limit: int = 20,
                 if events:
                     break
         # Final safety fallback hierarchy:
-        if not events:
-            # 1. Attempt another broad SerpApi call without location.
-            fallback_batch = await fetch_google_events(query=base_query, start=max(0, (page - 1) * 10), htichips=htichips, location=None, enrich_limit=enrich_limit_global)
-            events.extend(fallback_batch)
+        if not events and not serp_rate_limited:
+            # 1. Attempt another broad SerpApi call without location (unless already rate limited).
+            try:
+                fallback_batch = await fetch_google_events(query=base_query, start=max(0, (page - 1) * 10), htichips=htichips, location=None, enrich_limit=enrich_limit_global)
+                events.extend(fallback_batch)
+            except SerpApiRateLimitError:
+                serp_rate_limited = True
+                await cache.set("serpapi:rate_limited", True, 60*60*12)
+                logger.warning("SerpApi quota exhausted (final broad attempt); switching to fallback.")
         if not events:
             # 2. ScraperAPI HTML fallback (best-effort) using a localized or base query.
             fallback_query = base_query
