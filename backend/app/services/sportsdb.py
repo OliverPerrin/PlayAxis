@@ -1,9 +1,14 @@
 import httpx
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.core.config import settings
 from app.core.cache import cache
 import asyncio
+from app.services.external_standings import (
+    get_fifa_world_rankings,
+    get_skiing_standings,
+    get_soccer_top_scorers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +18,45 @@ API_KEY_FALLBACK = "123"  # free key
 TTL_SHORT = 120  # 2 min for volatile endpoints (next events)
 TTL_LONG = 3600  # 1 hour for static lists
 
-SPORT_ALIAS = {
+# Base static aliases. We will augment this at runtime with any sports returned
+# by list_all_sports() so unknown sports still resolve to a display name.
+SPORT_ALIAS: Dict[str, Tuple[str, Optional[str]]] = {
     "nfl": ("American Football", "NFL"),
     "nba": ("Basketball", "NBA"),
     "mlb": ("Baseball", "MLB"),
     "nhl": ("Ice Hockey", "NHL"),
     "epl": ("Soccer", "English Premier League"),
     "soccer": ("Soccer", None),
+    # Additional common aliases
+    "f1": ("Motorsport", None),
+    "formula1": ("Motorsport", None),
+    "formula-1": ("Motorsport", None),
+    "skiing": ("Skiing", None),
 }
+
+_dynamic_alias_populated = False
+
+async def _ensure_dynamic_aliases():
+    """Populate SPORT_ALIAS with every sport from TheSportsDB once per process.
+
+    Each sport key will be the lowercase of strSport with spaces replaced by underscores.
+    League mapping remains None unless explicitly handled in static map.
+    """
+    global _dynamic_alias_populated
+    if _dynamic_alias_populated:
+        return
+    try:
+        sports = await list_all_sports()
+        for s in sports:
+            name = (s.get('strSport') or '').strip()
+            if not name:
+                continue
+            key = name.lower().replace(' ', '_')
+            if key not in SPORT_ALIAS:
+                SPORT_ALIAS[key] = (name, None)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed populating dynamic sport aliases: %s", e)
+    _dynamic_alias_populated = True
 
 def _api_key() -> str:
     # Optionally add a new setting later (THESPORTSDB_API_KEY); fallback to rapid key if reused
@@ -113,6 +149,243 @@ LEAGUE_IDS = {
     'MLB': '4424',
 }
 
+async def get_league_table(league_id: str, season: Optional[str] = None) -> List[Dict[str, Any]]:
+    # TheSportsDB: lookuptable.php?l=4328&s=2023-2024 (season optional, some sports just latest)
+    params = {"l": league_id}
+    if season:
+        params["s"] = season
+    data = await _get_json('lookuptable.php', params=params, ttl=TTL_SHORT)
+    table = data.get('table') if isinstance(data, dict) else None
+    return table or []
+
+def _sport_to_league_id(sport_key: str) -> Optional[str]:
+    alias = SPORT_ALIAS.get(sport_key.lower())
+    if not alias:
+        return None
+    _, league_name = alias
+    if not league_name:
+        return None
+    return LEAGUE_IDS.get(league_name.upper())
+
+async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
+    """Return a multi-table standings structure differing by sport.
+
+    Shape:
+    {
+      "sport": <input>,
+      "league_id": <id or None>,
+      "tables": [
+         {"kind": "league", "name": "League Standings", "columns": [...], "rows": [...]},
+         {"kind": "drivers", ...}, ...
+      ]
+    }
+    """
+    await _ensure_dynamic_aliases()
+    skey = sport_key.lower()
+
+    # Special handling for motorsport (F1) placeholder sample (real integration would call dedicated endpoints)
+    if skey in {"f1", "formula1", "formula-1"}:
+        # Use Ergast free API (no key required): http://ergast.com/api/f1/current/standings.json
+        async def _ergast(path: str) -> Optional[Dict[str, Any]]:
+            url = f"http://ergast.com/api/f1/{path}"
+            cache_key = f"ergast:{path}"
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                return cached
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    r = await client.get(url)
+                    if r.status_code != 200:
+                        await cache.set(cache_key, None, 60)
+                        return None
+                    data = r.json()
+                    await cache.set(cache_key, data, 300)  # 5 min cache
+                    return data
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Ergast fetch fail path=%s err=%s", path, e)
+                await cache.set(cache_key, None, 60)
+                return None
+
+        drivers_data, constructors_data, last_race_data, qual_data = await asyncio.gather(
+            _ergast('current/driverStandings.json'),
+            _ergast('current/constructorStandings.json'),
+            _ergast('current/last/results.json'),
+            _ergast('current/last/qualifying.json'),
+        )
+
+        def _drivers_rows():
+            try:
+                lists = drivers_data['MRData']['StandingsTable']['StandingsLists']
+                if not lists:
+                    return []
+                standings = lists[0]['DriverStandings']
+                rows = []
+                for d in standings:
+                    drv = d.get('Driver', {})
+                    cons = d.get('Constructors', [{}])[0]
+                    rows.append({
+                        'Position': d.get('position'),
+                        'Driver': f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
+                        'Team': cons.get('name'),
+                        'Points': d.get('points'),
+                        'Wins': d.get('wins'),
+                        'Podiums': None,  # Ergast does not directly supply podium count
+                    })
+                return rows
+            except Exception:  # noqa: BLE001
+                return []
+
+        def _constructors_rows():
+            try:
+                lists = constructors_data['MRData']['StandingsTable']['StandingsLists']
+                if not lists:
+                    return []
+                standings = lists[0]['ConstructorStandings']
+                rows = []
+                for c in standings:
+                    cons = c.get('Constructor', {})
+                    rows.append({
+                        'Position': c.get('position'),
+                        'Constructor': cons.get('name'),
+                        'Points': c.get('points'),
+                        'Wins': c.get('wins'),
+                        'Podiums': None,
+                    })
+                return rows
+            except Exception:  # noqa: BLE001
+                return []
+
+        def _qualifying_rows():
+            try:
+                # Qualifying last race
+                races = qual_data['MRData']['RaceTable']['Races']
+                if not races:
+                    return []
+                qual_results = races[0].get('QualifyingResults', [])
+                rows = []
+                for q in qual_results:
+                    drv = q.get('Driver', {})
+                    rows.append({
+                        'Position': q.get('position'),
+                        'Driver': f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
+                        'Q3 Time': q.get('Q3') or q.get('Q2') or q.get('Q1'),
+                    })
+                return rows
+            except Exception:  # noqa: BLE001
+                return []
+
+        def _race_rows():
+            try:
+                races = last_race_data['MRData']['RaceTable']['Races']
+                if not races:
+                    return []
+                results = races[0].get('Results', [])
+                rows = []
+                for r in results:
+                    drv = r.get('Driver', {})
+                    status = r.get('status')
+                    time_obj = r.get('Time', {})
+                    rows.append({
+                        'Position': r.get('position'),
+                        'Driver': f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
+                        'Race Time': time_obj.get('time'),
+                        'Status': status,
+                    })
+                return rows
+            except Exception:  # noqa: BLE001
+                return []
+
+        tables = [
+            {
+                'kind': 'drivers',
+                'name': 'Drivers Championship',
+                'columns': ['Position', 'Driver', 'Team', 'Points', 'Wins', 'Podiums'],
+                'rows': _drivers_rows(),
+            },
+            {
+                'kind': 'constructors',
+                'name': 'Constructors Championship',
+                'columns': ['Position', 'Constructor', 'Points', 'Wins', 'Podiums'],
+                'rows': _constructors_rows(),
+            },
+            {
+                'kind': 'qualifying',
+                'name': 'Latest Qualifying',
+                'columns': ['Position', 'Driver', 'Q3 Time'],
+                'rows': _qualifying_rows(),
+            },
+            {
+                'kind': 'race',
+                'name': 'Latest Grand Prix Result',
+                'columns': ['Position', 'Driver', 'Race Time', 'Status'],
+                'rows': _race_rows(),
+            },
+        ]
+        return {'sport': sport_key, 'league_id': None, 'tables': tables}
+
+    # Skiing placeholder – disciplines & times (no direct TheSportsDB aggregate; synthetic structure)
+    if skey in {"ski", "skiing"}:
+        ski_rows = await get_skiing_standings()
+        return {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "skiing_overall",
+                    "name": "Alpine World Cup Overall (Men)",
+                    "columns": ["Rank", "Athlete", "Nation", "Points"],
+                    "rows": ski_rows,
+                }
+            ],
+        }
+
+    # Soccer (league style) – attempt league table
+    league_id = _sport_to_league_id(sport_key)
+    if league_id:
+        raw = await get_league_table(league_id)
+        standings_rows = []
+        for row in raw:
+            standings_rows.append({
+                "Rank": row.get('intRank'),
+                "Team": row.get('strTeam'),
+                "Played": row.get('intPlayed') or row.get('intPlayedOverall'),
+                "Win": row.get('intWin') or row.get('intWins'),
+                "Draw": row.get('intDraw') or row.get('intTies'),
+                "Loss": row.get('intLoss') or row.get('intLosses'),
+                "GF": row.get('intGoalsFor') or row.get('intPointsFor'),
+                "GA": row.get('intGoalsAgainst') or row.get('intPointsAgainst'),
+                "GD": (
+                    (row.get('intGoalsFor') or 0) - (row.get('intGoalsAgainst') or 0)
+                    if (row.get('intGoalsFor') is not None and row.get('intGoalsAgainst') is not None) else None
+                ),
+                "Pts": row.get('intPoints') or row.get('points') or row.get('intWin'),
+            })
+        league_table = {
+            "kind": "league",
+            "name": "League Standings",
+            "columns": ["Rank", "Team", "Played", "Win", "Draw", "Loss", "GF", "GA", "GD", "Pts"],
+            "rows": standings_rows,
+        }
+        # Placeholder for player stats / world rankings (not provided by current integration)
+        scorers_rows = await get_soccer_top_scorers(league_id)
+        players_table = {
+            "kind": "players_top_scorers",
+            "name": "Top Scorers",
+            "columns": ["Rank", "Player", "Team", "Goals"],
+            "rows": scorers_rows,
+        }
+        fifa_rows = await get_fifa_world_rankings(limit=50)
+        world_rankings_table = {
+            "kind": "world_rankings",
+            "name": "FIFA World Rankings (Top 50)",
+            "columns": ["Rank", "Team", "Points"],
+            "rows": fifa_rows,
+        }
+        return {"sport": sport_key, "league_id": league_id, "tables": [league_table, players_table, world_rankings_table]}
+
+    # Fallback empty response for unsupported mapping
+    return {"sport": sport_key, "league_id": None, "tables": []}
+
 async def unified_events(sport_key: str) -> Dict[str, Any]:
     """Return combined snapshot: upcoming + recent for a mapped league if available."""
     alias = SPORT_ALIAS.get(sport_key.lower())
@@ -138,5 +411,5 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
 
 __all__ = [
     'list_all_sports', 'get_next_events_for_league', 'get_previous_events_for_league',
-    'get_team_next', 'search_team', 'unified_events'
+    'get_team_next', 'search_team', 'unified_events', 'get_standings_for_sport'
 ]

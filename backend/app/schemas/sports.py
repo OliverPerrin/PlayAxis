@@ -105,6 +105,19 @@ class StandingsResponse(BaseModel):
     standings: List[Standing]
 
 
+class StandingsTable(BaseModel):
+    kind: str
+    name: str
+    columns: List[str]
+    rows: List[dict]
+
+
+class MultiStandingsResponse(BaseModel):
+    sport: str
+    league_id: Optional[str] = None
+    tables: List[StandingsTable]
+
+
 class PlayersResponse(BaseModel):
     players: List[Player]
 

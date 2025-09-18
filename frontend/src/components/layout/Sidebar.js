@@ -22,6 +22,7 @@ const navItems = [
   { to: '/events', label: 'Events', icon: CalendarIcon },
   { to: '/discover', label: 'Discover', icon: GlobeAltIcon },
   { to: '/leaderboards', label: 'Leaderboards', icon: TrophyIcon },
+  { to: '/matches', label: 'Matches', icon: CalendarIcon },
   { to: '/mystats', label: 'My Stats', icon: ChartBarIcon },
   { to: '/log-workout', label: 'Log Workout', icon: CalendarIcon },
   { to: '/compare', label: 'Compare', icon: AdjustmentsHorizontalIcon },

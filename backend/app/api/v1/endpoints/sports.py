@@ -1,10 +1,10 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from app.services.sportsdb import unified_events, list_all_sports, search_team, get_team_next
+from app.services.sportsdb import unified_events, list_all_sports, search_team, get_team_next, get_standings_for_sport
 from app.schemas.sports import (
     SportsListResponse, UnifiedEventsResponse, PlayersResponse, ComparePlayerRequest,
-    ComparePlayerResponse, CompareMetric
+    ComparePlayerResponse, CompareMetric, MultiStandingsResponse
 )
 
 router = APIRouter()
@@ -23,6 +23,15 @@ async def read_sports_events(sport: str):
     """Return upcoming and recent events for a given sport key (NFL, NBA, EPL, etc)."""
     try:
         data = await unified_events(sport)
+        return data
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{sport}/standings", response_model=MultiStandingsResponse)
+async def sport_standings(sport: str):
+    try:
+        data = await get_standings_for_sport(sport)
         return data
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(e))

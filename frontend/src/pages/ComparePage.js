@@ -1,13 +1,15 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { ArrowsRightLeftIcon, TrophyIcon, BoltIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { ThemeContext } from '../contexts/ThemeContext';
-import { listSports, searchTeams, getSportsEvents, comparePlayer } from '../api';
+import { listSports, searchTeams, getSportsEvents, comparePlayer, teamUpcomingEvents } from '../api';
 
 const ComparePage = () => {
   const [left, setLeft] = useState('You');
   const [right, setRight] = useState('Pro Athlete');
 
   const [rows, setRows] = useState([]);
+  const [snapshot, setSnapshot] = useState({ upcoming: [], recent: [] });
+  const [teamUpcoming, setTeamUpcoming] = useState([]);
   const [sports, setSports] = useState([]);
   const [selectedSport, setSelectedSport] = useState('nfl');
   const [teamQuery, setTeamQuery] = useState('');
@@ -27,24 +29,55 @@ const ComparePage = () => {
     return () => { mounted = false; };
   }, []);
 
-  // Fetch snapshot events for selected sport
+  // Fetch league snapshot events for selected sport
   useEffect(() => {
     let active = true;
     setLoadingEvents(true);
-    getSportsEvents(selectedSport).then(snapshot => {
-      if (!active) return;
-      const up = snapshot.upcoming?.[0];
-      const recent = snapshot.recent?.[0];
-      setRows([
-        { metric: 'Upcoming Game', left: left, right: up ? `${up.home_team} vs ${up.away_team}` : '—' },
-        { metric: 'Recent Result', left: left, right: recent ? `${recent.home_team} ${recent.home_score ?? ''} - ${recent.away_score ?? ''} ${recent.away_team}` : '—' },
-        { metric: 'Home Team', left: 'You', right: up?.home_team || recent?.home_team || '—' },
-        { metric: 'Away Team', left: 'Competition', right: up?.away_team || recent?.away_team || '—' },
-      ]);
-      setLoadingEvents(false);
-    }).catch(() => setLoadingEvents(false));
+    getSportsEvents(selectedSport)
+      .then(snap => { if (active) setSnapshot(snap); })
+      .finally(() => { if (active) setLoadingEvents(false); });
     return () => { active = false; };
-  }, [selectedSport, left]);
+  }, [selectedSport]);
+
+  // Fetch team upcoming when team selected
+  useEffect(() => {
+    if (!selectedTeam?.idTeam) { setTeamUpcoming([]); return; }
+    let mounted = true;
+    teamUpcomingEvents(selectedTeam.idTeam).then(res => { if (mounted) setTeamUpcoming(res.upcoming || []); });
+    return () => { mounted = false; };
+  }, [selectedTeam]);
+
+  // Build comparison rows whenever inputs change
+  useEffect(() => {
+    const nextLeague = snapshot.upcoming?.[0];
+    const recentLeague = snapshot.recent?.[0];
+    const nextTeam = teamUpcoming?.[0];
+    const secondTeam = teamUpcoming?.[1];
+
+    const opponent = (ev) => {
+      if (!ev || !selectedTeam?.strTeam) return '—';
+      if (ev.home_team === selectedTeam.strTeam) return ev.away_team || '—';
+      if (ev.away_team === selectedTeam.strTeam) return ev.home_team || '—';
+      return `${ev.home_team} vs ${ev.away_team}`;
+    };
+
+    const formatResult = (ev) => {
+      if (!ev) return '—';
+      if (ev.home_score != null && ev.away_score != null) {
+        return `${ev.home_team} ${ev.home_score} - ${ev.away_score} ${ev.away_team}`;
+      }
+      return `${ev.home_team} vs ${ev.away_team}`;
+    };
+
+    const newRows = [
+      { metric: 'Team Next Event', left: left, right: nextTeam ? formatResult(nextTeam) : '—' },
+      { metric: 'Team Opponent', left: left, right: nextTeam ? opponent(nextTeam) : '—' },
+      { metric: 'Following Opponent', left: left, right: secondTeam ? opponent(secondTeam) : '—' },
+      { metric: 'League Next Event', left: left, right: nextLeague ? formatResult(nextLeague) : '—' },
+      { metric: 'League Recent Result', left: left, right: formatResult(recentLeague) },
+    ];
+    setRows(newRows);
+  }, [snapshot, teamUpcoming, selectedTeam, left]);
 
   // Debounced team search
   useEffect(() => {
@@ -137,8 +170,8 @@ const ComparePage = () => {
               <thead>
                 <tr className={tableHead}>
                   <th className="py-3">Metric</th>
-                  <th className="py-3">{left}</th>
-                  <th className="py-3">{selectedTeam?.strTeam || 'Team'}</th>
+                  <th className="py-3">Label</th>
+                  <th className="py-3">{selectedTeam?.strTeam || 'Team / Context'}</th>
                 </tr>
               </thead>
               <tbody>

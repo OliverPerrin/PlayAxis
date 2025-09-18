@@ -1,244 +1,108 @@
-import React, { useEffect, useMemo, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { motion } from 'framer-motion';
-import {
-  TrophyIcon,
-  FireIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  GlobeAltIcon,
-  UserIcon,
-} from '@heroicons/react/24/outline';
-import { getLeaderboards } from '../api';
-import { ThemeContext } from '../contexts/ThemeContext';
+import { listSports } from '../api';
 
-const normalizeLeaderboard = (payload, fallbackCategory) => {
-  const MOCK_DATA = {
-    overall: [
-      { rank: 1, name: 'Alex Runner', avatar: '🏃‍♂️', score: 2450, streak: 45, change: 0, country: '🇺🇸' },
-      { rank: 2, name: 'Sarah Cyclist', avatar: '🚴‍♀️', score: 2380, streak: 32, change: 1, country: '🇨🇦' },
-      { rank: 3, name: 'Mike Swimmer', avatar: '🏊‍♂️', score: 2210, streak: 28, change: -1, country: '🇦🇺' },
-      { rank: 4, name: 'Emma Tennis', avatar: '🎾', score: 2150, streak: 21, change: 2, country: '🇬🇧' },
-      { rank: 5, name: 'David Climber', avatar: '🧗‍♂️', score: 2100, streak: 19, change: -1, country: '🇩🇪' },
-      { rank: 6, name: 'Lisa Yoga', avatar: '🧘‍♀️', score: 2050, streak: 35, change: 0, country: '🇯🇵' },
-      { rank: 7, name: 'Tom Hiker', avatar: '🥾', score: 1980, streak: 14, change: 3, country: '🇫🇷' },
-      { rank: 8, name: 'Anna Dancer', avatar: '💃', score: 1920, streak: 25, change: -2, country: '🇪🇸' },
-    ],
-  };
-  if (!payload) return MOCK_DATA[fallbackCategory] || MOCK_DATA.overall;
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload.data)) return payload.data;
-  if (Array.isArray(payload.leaderboard)) return payload.leaderboard;
-  if (payload.results && Array.isArray(payload.results)) return payload.results;
-  return MOCK_DATA[fallbackCategory] || MOCK_DATA.overall;
-};
-
-const changeBadge = (n) => {
-  if (!n) return <span className="text-gray-400">—</span>;
-  if (n > 0) {
-    return (
-      <span className="inline-flex items-center text-emerald-400">
-        <ArrowTrendingUpIcon className="w-4 h-4 mr-0.5" />+{n}
-      </span>
-    );
+const fetchStandings = async (sportKey) => {
+  try {
+    const base = (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace(/\/$/, '') : '') + '/api/v1';
+    let url = '/api/v1';
+    if (typeof window !== 'undefined') {
+      // rely on same-origin proxy for local / netlify
+      url = '/api/v1';
+    } else if (base) {
+      url = base;
+    }
+    const res = await fetch(`${url}/sports/${encodeURIComponent(sportKey)}/standings`);
+    if (!res.ok) throw new Error('Failed');
+    return res.json();
+  } catch (e) {
+    return { sport: sportKey, league_id: null, tables: [] };
   }
-  return (
-    <span className="inline-flex items-center text-rose-400">
-      <ArrowTrendingDownIcon className="w-4 h-4 mr-0.5" />
-      {n}
-    </span>
-  );
 };
-
-const CATEGORIES = [
-  { id: 'overall', name: 'Overall', icon: TrophyIcon },
-  { id: 'running', name: 'Running', icon: () => <span>🏃‍♂️</span> },
-  { id: 'cycling', name: 'Cycling', icon: () => <span>🚴‍♂️</span> },
-  { id: 'tennis', name: 'Tennis', icon: () => <span>🎾</span> },
-  { id: 'swimming', name: 'Swimming', icon: () => <span>🏊‍♂️</span> },
-];
-
-const TIMEFRAMES = [
-  { id: 'weekly', name: 'This Week' },
-  { id: 'monthly', name: 'This Month' },
-  { id: 'yearly', name: 'This Year' },
-  { id: 'alltime', name: 'All Time' },
-];
 
 const LeaderboardsPage = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [category, setCategory] = useState('overall');
-  const [timeframe, setTimeframe] = useState('monthly');
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState([]);
-  const [error, setError] = useState('');
-  // removed direct ThemeContext usage in favor of useTheme hook
-
-  // Top 3 cached subset for podium
-  const top3 = useMemo(() => rows.slice(0, 3), [rows]);
+  const [sports, setSports] = useState([]);
+  const [selectedSport, setSelectedSport] = useState('soccer');
+  const [data, setData] = useState({ tables: [] });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const data = await getLeaderboards(category, timeframe);
-        if (!mounted) return;
-        const normalized = normalizeLeaderboard(data, category).map((r, idx) => ({
-          rank: r.rank ?? idx + 1,
-          name: r.name || r.username || 'Athlete',
-          avatar: r.avatar || '🏅',
-          score: r.score ?? r.points ?? r.value ?? 0,
-            streak: r.streak ?? r.current_streak ?? 0,
-          change: r.change ?? r.rank_change ?? 0,
-          country: r.country || r.flag || '🌍',
-        }));
-        setRows(normalized);
-      } catch (e) {
-        if (!mounted) return;
-        setError('Showing demo leaderboard.');
-        setRows(normalizeLeaderboard(null, category));
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [category, timeframe]);
+    let active = true;
+    listSports().then(d => { if (active && d && Array.isArray(d.sports)) setSports(d.sports); });
+    return () => { active = false; };
+  }, []);
 
-  // Style tokens
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchStandings(selectedSport).then(r => { if (active) setData(r || { tables: [] }); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [selectedSport]);
+
   const heading = isDark ? 'text-white' : 'text-slate-900';
   const sub = isDark ? 'text-gray-300' : 'text-slate-600';
   const surface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
-  const pod = surface; // same visual treatment
-  const toggleBase = isDark ? 'text-gray-300 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100';
-  const toggleActive = 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white';
-  const tableHead = isDark ? 'bg-white/5' : 'bg-slate-100';
-  const tableRow = isDark ? 'border-t border-white/10 hover:bg-white/5' : 'border-t border-slate-200 hover:bg-slate-50';
-  const cellMuted = isDark ? 'text-gray-300' : 'text-slate-600';
+  const surfaceCls = `${surface} rounded-2xl`;
+  const tableHead = isDark ? 'bg-white/5 text-gray-300' : 'bg-slate-100 text-slate-600';
+  const rowBorder = isDark ? 'border-t border-white/10' : 'border-t border-slate-200';
 
   return (
     <div className="min-h-screen p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center">
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Leaderboards</h1>
-            <p className={sub}>See who’s leading across categories and timeframes</p>
+            <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Standings</h1>
+            <p className={sub}>Multi-sport standings: league tables, championships & placeholders where data is pending.</p>
           </div>
-          <div className="flex gap-2 mt-4 lg:mt-0">
-            <div className={`${surface} rounded-xl p-2 flex`}>
-              {CATEGORIES.map((c) => {
-                const Icon = c.icon;
-                const active = c.id === category;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setCategory(c.id)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${active ? toggleActive : toggleBase}`}
-                  >
-                    {typeof Icon === 'function' ? <Icon /> : <UserIcon className="w-4 h-4" />}
-                    {c.name}
-                  </button>
-                );
-              })}
+          <div>
+            <select value={selectedSport} onChange={e => setSelectedSport(e.target.value)} className={`px-4 py-2 rounded-xl ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}>
+              {sports.map(s => (
+                <option key={s.idSport || s.strSport} value={(s.strSport || '').toLowerCase().replace(/\s+/g,'_')}>{s.strSport}</option>
+              ))}
+              {/* ensure some common aliases always visible */}
+              {['f1','skiing'].map(k => (!sports.some(s => (s.strSport||'').toLowerCase() === k) ? <option key={k} value={k}>{k.toUpperCase()}</option> : null))}
+            </select>
+          </div>
+        </div>
+
+        {loading && <div className={sub}>Loading standings...</div>}
+        {!loading && data.tables && data.tables.length === 0 && (
+          <div className={`${surfaceCls} p-6 text-sm ${sub}`}>No standings available for this sport yet.</div>
+        )}
+
+        {!loading && data.tables && data.tables.map(tbl => (
+          <div key={tbl.kind} className={`${surfaceCls} p-6 space-y-4`}> 
+            <div className="flex items-center justify-between">
+              <h2 className={`text-xl font-semibold ${heading}`}>{tbl.name}</h2>
+              <span className={`text-xs uppercase tracking-wide ${sub}`}>{tbl.kind}</span>
             </div>
-            <div className={`${surface} rounded-xl p-2 flex`}>
-              {TIMEFRAMES.map((t) => {
-                const active = t.id === timeframe;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setTimeframe(t.id)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${active ? toggleActive : toggleBase}`}
-                  >
-                    {t.name}
-                  </button>
-                );
-              })}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className={tableHead}>
+                  <tr>
+                    {tbl.columns.map(col => (
+                      <th key={col} className="py-2 px-3 font-medium">{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tbl.rows.length === 0 && (
+                    <tr><td colSpan={tbl.columns.length} className="py-4 text-center text-xs opacity-60">No data</td></tr>
+                  )}
+                  {tbl.rows.map((r, idx) => (
+                    <tr key={idx} className={rowBorder}>
+                      {tbl.columns.map(col => (
+                        <td key={col} className="py-2 px-3 whitespace-nowrap">{r[col] !== undefined ? r[col] : r[col.toLowerCase()] || r[col.replace(/ /g,'_').toLowerCase()] || ''}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-
-        {error && <div className={isDark ? 'text-yellow-300' : 'text-amber-600'}>{error}</div>}
-
-        {/* Podium */}
-  <div className="grid md:grid-cols-3 gap-4">
-          {top3.map((p, i) => (
-            <motion.div
-              key={p.name + i}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={`${pod} rounded-2xl p-6 text-center`}
-            >
-              <div className="text-5xl mb-3">{p.avatar}</div>
-              <div className={`${heading} font-bold text-xl`}>{p.name}</div>
-              <div className={`${cellMuted} text-sm`}>{p.country}</div>
-              <div className={`mt-3 inline-flex items-center gap-2 ${isDark ? 'text-cyan-300' : 'text-emerald-600'}`}>
-                <TrophyIcon className="w-5 h-5" />
-                <span className="font-semibold">{p.score.toLocaleString()}</span>
-              </div>
-              <div className={`mt-2 text-sm flex justify-center gap-3 ${cellMuted}`}>
-                <span className="inline-flex items-center gap-1"><FireIcon className="w-4 h-4 text-amber-400" /> {p.streak}d</span>
-                {changeBadge(p.change)}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Full table */}
-        <div className={`${surface} rounded-2xl overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className={tableHead}>
-                <tr className={cellMuted}>
-                  <th className="py-3 px-4">Rank</th>
-                  <th className="py-3 px-4">Athlete</th>
-                  <th className="py-3 px-4">Country</th>
-                  <th className="py-3 px-4">Score</th>
-                  <th className="py-3 px-4">Streak</th>
-                  <th className="py-3 px-4">Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  [...Array(8)].map((_, i) => (
-                    <tr key={i} className={tableRow}>
-                      <td className="py-3 px-4"><div className={`h-4 w-6 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
-                      <td className="py-3 px-4"><div className={`h-4 w-40 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
-                      <td className="py-3 px-4"><div className={`h-4 w-12 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
-                      <td className="py-3 px-4"><div className={`h-4 w-12 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
-                      <td className="py-3 px-4"><div className={`h-4 w-10 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
-                      <td className="py-3 px-4"><div className={`h-4 w-10 rounded ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} /></td>
-                    </tr>
-                  ))
-                ) : (
-                  rows.map((r) => (
-                    <tr key={r.rank + r.name} className={tableRow}>
-                      <td className={`py-3 px-4 font-semibold ${heading}`}>{r.rank}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="text-2xl">{r.avatar}</div>
-                          <div className={heading}>{r.name}</div>
-                        </div>
-                      </td>
-                      <td className={`py-3 px-4 ${cellMuted}`}>{r.country}</td>
-                      <td className={`py-3 px-4 font-semibold ${heading}`}>{r.score.toLocaleString()}</td>
-                      <td className={`py-3 px-4 ${cellMuted}`}>{r.streak} days</td>
-                      <td className="py-3 px-4">{changeBadge(r.change)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className={`text-sm flex items-center gap-2 ${cellMuted}`}>
-          <GlobeAltIcon className="w-4 h-4" />
-          Leaderboards are refreshed periodically. Live rankings may differ slightly.
-        </div>
+        ))}
       </div>
     </div>
   );
