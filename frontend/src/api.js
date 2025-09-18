@@ -281,10 +281,16 @@ export const getSportsEvents = async (sport = 'nfl') => {
       headers: getAuthHeaders(),
     });
     const data = await handleResponse(res);
-    // Ensure array
-    return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+    // unified shape: { sport, league_id, upcoming:[], recent:[] }
+    if (!data || typeof data !== 'object') return { upcoming: [], recent: [] };
+    return {
+      sport: data.sport || sport,
+      league_id: data.league_id || null,
+      upcoming: Array.isArray(data.upcoming) ? data.upcoming : [],
+      recent: Array.isArray(data.recent) ? data.recent : [],
+    };
   } catch (error) {
     console.error('getSportsEvents error:', error);
-    return [];
+    return { upcoming: [], recent: [] };
   }
 };

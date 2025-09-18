@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { ArrowsRightLeftIcon, TrophyIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { ThemeContext } from '../contexts/ThemeContext';
 
@@ -6,13 +6,27 @@ const ComparePage = () => {
   const [left, setLeft] = useState('You');
   const [right, setRight] = useState('Pro Athlete');
 
-  const rows = [
-    { metric: '5K Time', left: '24:30', right: '13:00' },
-    { metric: '10K Time', left: '52:10', right: '27:10' },
-    { metric: 'Half Marathon', left: '1:58:42', right: '58:01' },
-    { metric: 'VO2 Max', left: '48', right: '80' },
-    { metric: 'Weekly Distance', left: '35 km', right: '160 km' },
-  ];
+  const [rows, setRows] = useState([
+    { metric: 'Upcoming Game', left: '—', right: '—' },
+    { metric: 'Recent Result', left: '—', right: '—' },
+    { metric: 'Home Team', left: '—', right: '—' },
+    { metric: 'Away Team', left: '—', right: '—' },
+  ]);
+  useEffect(() => {
+    // Lazy import to avoid circular imports at build time
+    import('../api').then(({ getSportsEvents }) => {
+      getSportsEvents('nfl').then(snapshot => {
+        const up = snapshot.upcoming?.[0];
+        const recent = snapshot.recent?.[0];
+        setRows([
+          { metric: 'Upcoming Game', left: left, right: up ? `${up.home_team} vs ${up.away_team}` : '—' },
+          { metric: 'Recent Result', left: left, right: recent ? `${recent.home_team} ${recent.home_score ?? ''} - ${recent.away_score ?? ''} ${recent.away_team}` : '—' },
+          { metric: 'Home Team', left: 'You', right: up?.home_team || recent?.home_team || '—' },
+          { metric: 'Away Team', left: 'Competition', right: up?.away_team || recent?.away_team || '—' },
+        ]);
+      });
+    });
+  }, [left, right]);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';

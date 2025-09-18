@@ -6,7 +6,7 @@ from app.core.dependencies import get_current_user
 from app.schemas.user import User
 from app.schemas.recommendation import Recommendation
 from app.services.twitch import get_twitch_streams
-from app.services.sportsbook import get_sportsbook_events
+from app.services.sportsdb import unified_events
 from typing import List
 
 router = APIRouter()
@@ -37,18 +37,21 @@ async def get_recommendations(
             except Exception as e:
                 print(f"Error fetching Twitch streams for {interest.name}: {e}")
 
-        # Sportsbook events (example mapping)
-        sportsbook_sport_mapping = {
-            'american football': 'americanfootball_nfl',
-            'soccer': 'soccer_usa_mls',
-            'tennis': 'tennis_atp',
+        # Sports events via TheSportsDB
+        sports_mapping = {
+            'american football': 'nfl',
+            'soccer': 'epl',
+            'tennis': 'tennis',  # fallback will have empty league mapping currently
         }
-        if interest.name.lower() in sportsbook_sport_mapping:
+        if interest.name.lower() in sports_mapping:
             try:
-                sportsbook_data = await get_sportsbook_events(sportsbook_sport_mapping[interest.name.lower()])
-                for sport_event in sportsbook_data:
-                    recommended_events.append({"type": "sportsbook", "data": sport_event})
+                sport_key = sports_mapping[interest.name.lower()]
+                snapshot = await unified_events(sport_key)
+                for ev in snapshot.get('upcoming', [])[:5]:
+                    recommended_events.append({"type": "sport_upcoming", "data": ev})
+                for ev in snapshot.get('recent', [])[:3]:
+                    recommended_events.append({"type": "sport_recent", "data": ev})
             except Exception as e:
-                print(f"Error fetching Sportsbook events for {interest.name}: {e}")
+                print(f"Error fetching sports data for {interest.name}: {e}")
 
     return recommended_events
