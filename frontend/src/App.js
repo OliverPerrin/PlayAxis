@@ -22,6 +22,7 @@ import MyStatsPage from './pages/MyStatsPage';
 import ComparePage from './pages/ComparePage';
 import ProfilePage from './pages/ProfilePage';
 import LeaderboardsPage from './pages/LeaderboardsPage';
+import MatchesPage from './pages/MatchesPage';
 import CommunityPage from './pages/CommunityPage';
 import SettingsPage from './pages/SettingsPage';
 import AuthPage from './pages/AuthPage';
@@ -145,6 +146,7 @@ function AppContent() {
                 <Route path="/events/:id" element={<EventDetailPage />} />
                 <Route path="/discover" element={<DiscoverPage />} />
                 <Route path="/leaderboards" element={<LeaderboardsPage />} />
+                <Route path="/matches" element={<MatchesPage />} />
                 <Route path="/mystats" element={<MyStatsPage />} />
                 <Route path="/compare" element={<ComparePage />} />
                 <Route path="/community" element={<CommunityPage />} />
@@ -164,6 +166,7 @@ function AppContent() {
                 <Route path="/events/:id" element={<Navigate to="/landing" replace />} />
                 <Route path="/discover" element={<Navigate to="/landing" replace />} />
                 <Route path="/leaderboards" element={<Navigate to="/landing" replace />} />
+                <Route path="/matches" element={<Navigate to="/landing" replace />} />
                 <Route path="/mystats" element={<Navigate to="/landing" replace />} />
                 <Route path="/compare" element={<Navigate to="/landing" replace />} />
                 <Route path="/community" element={<Navigate to="/landing" replace />} />

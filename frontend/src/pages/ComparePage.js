@@ -1,32 +1,74 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { ArrowsRightLeftIcon, TrophyIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { ArrowsRightLeftIcon, TrophyIcon, BoltIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { listSports, searchTeams, getSportsEvents, comparePlayer } from '../api';
 
 const ComparePage = () => {
   const [left, setLeft] = useState('You');
   const [right, setRight] = useState('Pro Athlete');
 
-  const [rows, setRows] = useState([
-    { metric: 'Upcoming Game', left: '—', right: '—' },
-    { metric: 'Recent Result', left: '—', right: '—' },
-    { metric: 'Home Team', left: '—', right: '—' },
-    { metric: 'Away Team', left: '—', right: '—' },
-  ]);
+  const [rows, setRows] = useState([]);
+  const [sports, setSports] = useState([]);
+  const [selectedSport, setSelectedSport] = useState('nfl');
+  const [teamQuery, setTeamQuery] = useState('');
+  const [teamResults, setTeamResults] = useState([]);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [userMetrics, setUserMetrics] = useState({ speed: 0, endurance: 0, power: 0 });
+  const [comparison, setComparison] = useState(null);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [searchingTeams, setSearchingTeams] = useState(false);
+  const [comparing, setComparing] = useState(false);
+
   useEffect(() => {
-    // Lazy import to avoid circular imports at build time
-    import('../api').then(({ getSportsEvents }) => {
-      getSportsEvents('nfl').then(snapshot => {
-        const up = snapshot.upcoming?.[0];
-        const recent = snapshot.recent?.[0];
-        setRows([
-          { metric: 'Upcoming Game', left: left, right: up ? `${up.home_team} vs ${up.away_team}` : '—' },
-          { metric: 'Recent Result', left: left, right: recent ? `${recent.home_team} ${recent.home_score ?? ''} - ${recent.away_score ?? ''} ${recent.away_team}` : '—' },
-          { metric: 'Home Team', left: 'You', right: up?.home_team || recent?.home_team || '—' },
-          { metric: 'Away Team', left: 'Competition', right: up?.away_team || recent?.away_team || '—' },
-        ]);
-      });
+    let mounted = true;
+    listSports().then(data => {
+      if (mounted && data && Array.isArray(data.sports)) setSports(data.sports);
     });
-  }, [left, right]);
+    return () => { mounted = false; };
+  }, []);
+
+  // Fetch snapshot events for selected sport
+  useEffect(() => {
+    let active = true;
+    setLoadingEvents(true);
+    getSportsEvents(selectedSport).then(snapshot => {
+      if (!active) return;
+      const up = snapshot.upcoming?.[0];
+      const recent = snapshot.recent?.[0];
+      setRows([
+        { metric: 'Upcoming Game', left: left, right: up ? `${up.home_team} vs ${up.away_team}` : '—' },
+        { metric: 'Recent Result', left: left, right: recent ? `${recent.home_team} ${recent.home_score ?? ''} - ${recent.away_score ?? ''} ${recent.away_team}` : '—' },
+        { metric: 'Home Team', left: 'You', right: up?.home_team || recent?.home_team || '—' },
+        { metric: 'Away Team', left: 'Competition', right: up?.away_team || recent?.away_team || '—' },
+      ]);
+      setLoadingEvents(false);
+    }).catch(() => setLoadingEvents(false));
+    return () => { active = false; };
+  }, [selectedSport, left]);
+
+  // Debounced team search
+  useEffect(() => {
+    if (teamQuery.trim().length < 2) { setTeamResults([]); return; }
+    const handle = setTimeout(() => {
+      setSearchingTeams(true);
+      searchTeams(teamQuery).then(res => {
+        setTeamResults(res.players || []); // reusing schema
+        setSearchingTeams(false);
+      }).catch(() => setSearchingTeams(false));
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [teamQuery]);
+
+  const submitComparison = () => {
+    setComparing(true);
+    comparePlayer({ sport: selectedSport, player_id: selectedTeam?.idTeam || 'unknown', user_metrics: userMetrics })
+      .then(resp => setComparison(resp))
+      .finally(() => setComparing(false));
+  };
+
+  const updateMetric = (k, v) => {
+    setUserMetrics(m => ({ ...m, [k]: v }));
+  };
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -42,18 +84,51 @@ const ComparePage = () => {
       <div className="max-w-5xl mx-auto">
         <h1 className={`text-4xl font-bold mb-6 ${heading}`}>Compare Performance</h1>
 
-        <div className={`${surface} rounded-2xl p-6`}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+        <div className={`${surface} rounded-2xl p-6 space-y-6`}>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
             <div>
-              <label className={`block mb-2 ${heading}`}>Left</label>
+              <label className={`block mb-2 ${heading}`}>Your Label</label>
               <input value={left} onChange={e => setLeft(e.target.value)} className={`w-full px-4 py-2 rounded-xl ${inputCls}`} />
+            </div>
+            <div>
+              <label className={`block mb-2 ${heading}`}>Sport</label>
+              <select value={selectedSport} onChange={e => setSelectedSport(e.target.value)} className={`w-full px-4 py-2 rounded-xl ${inputCls}`}>
+                {sports.map(s => (
+                  <option key={s.idSport || s.strSport} value={(s.strSport || '').toLowerCase()}>{s.strSport}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={`block mb-2 ${heading}`}>Search Team</label>
+              <div className="relative">
+                <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-2.5 opacity-60" />
+                <input value={teamQuery} onChange={e => setTeamQuery(e.target.value)} placeholder="Type team name" className={`w-full pl-10 px-4 py-2 rounded-xl ${inputCls}`} />
+                {teamResults.length > 0 && (
+                  <div className={`absolute z-10 mt-1 max-h-48 overflow-y-auto w-full rounded-xl ${isDark ? 'bg-gray-900 border border-white/10' : 'bg-white border border-slate-200'} shadow-lg`}> 
+                    {teamResults.slice(0, 12).map(t => (
+                      <button key={t.idTeam || t.id} type="button" onClick={() => { setSelectedTeam(t); setTeamQuery(t.strTeam || t.strPlayer || ''); setTeamResults([]); }} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-500/10">
+                        {(t.strTeam || t.strPlayer || 'Team')} <span className="opacity-60">{t.strLeague || ''}</span>
+                      </button>
+                    ))}
+                    {searchingTeams && <div className="px-3 py-2 text-xs opacity-60">Searching...</div>}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-center">
               <ArrowsRightLeftIcon className="w-8 h-8 text-cyan-300" />
             </div>
-            <div>
-              <label className={`block mb-2 ${heading}`}>Right</label>
-              <input value={right} onChange={e => setRight(e.target.value)} className={`w-full px-4 py-2 rounded-xl ${inputCls}`} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Object.keys(userMetrics).map(k => (
+              <div key={k}>
+                <label className={`block mb-2 ${heading}`}>{k.charAt(0).toUpperCase() + k.slice(1)}</label>
+                <input type="number" value={userMetrics[k]} onChange={e => updateMetric(k, Number(e.target.value))} className={`w-full px-4 py-2 rounded-xl ${inputCls}`} />
+              </div>
+            ))}
+            <div className="flex items-end">
+              <button disabled={comparing} onClick={submitComparison} className="w-full bg-gradient-to-r from-cyan-600 to-emerald-600 text-white font-semibold py-2 rounded-xl shadow disabled:opacity-50">{comparing ? 'Comparing...' : 'Compare'}</button>
             </div>
           </div>
 
@@ -63,10 +138,13 @@ const ComparePage = () => {
                 <tr className={tableHead}>
                   <th className="py-3">Metric</th>
                   <th className="py-3">{left}</th>
-                  <th className="py-3">{right}</th>
+                  <th className="py-3">{selectedTeam?.strTeam || 'Team'}</th>
                 </tr>
               </thead>
               <tbody>
+                {loadingEvents && (
+                  <tr><td colSpan={3} className="py-4 text-center text-xs opacity-60 animate-pulse">Loading events...</td></tr>
+                )}
                 {rows.map(r => (
                   <tr key={r.metric} className={`${rowBorder} ${isDark ? 'text-white/90' : 'text-slate-800'}`}>
                     <td className="py-3 font-medium">{r.metric}</td>
@@ -74,13 +152,20 @@ const ComparePage = () => {
                     <td className="py-3">{r.right}</td>
                   </tr>
                 ))}
+                {comparison && comparison.metrics.map(m => (
+                  <tr key={m.metric} className={`${rowBorder} ${isDark ? 'text-white/80' : 'text-slate-700'}`}>
+                    <td className="py-3 font-medium">{m.metric}</td>
+                    <td className="py-3">{m.user_value}</td>
+                    <td className="py-3">{m.player_value}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
-          <div className="mt-6 flex gap-4">
-            <div className={`flex items-center gap-2 ${isDark ? 'text-emerald-300' : 'text-emerald-600'}`}><BoltIcon className="w-5 h-5" /> Strength: Speed Workouts</div>
-            <div className={`flex items-center gap-2 ${isDark ? 'text-cyan-300' : 'text-cyan-600'}`}><TrophyIcon className="w-5 h-5" /> Target: New 10K PR</div>
+          <div className="mt-6 flex flex-wrap gap-4 text-sm">
+            <div className={`${isDark ? 'text-emerald-300' : 'text-emerald-700'} flex items-center gap-2`}><BoltIcon className="w-5 h-5" /> Add more custom metrics soon</div>
+            <div className={`${isDark ? 'text-cyan-300' : 'text-cyan-600'} flex items-center gap-2`}><TrophyIcon className="w-5 h-5" /> Comparison is illustrative only</div>
           </div>
         </div>
       </div>

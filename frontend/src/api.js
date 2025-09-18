@@ -294,3 +294,23 @@ export const getSportsEvents = async (sport = 'nfl') => {
     return { upcoming: [], recent: [] };
   }
 };
+
+export const listSports = async () => {
+  return fetchJSON(`${API_BASE}/sports/`)
+}
+
+export const searchTeams = async (query) => {
+  const params = new URLSearchParams({ q: query })
+  return fetchJSON(`${API_BASE}/sports/teams/search?${params.toString()}`)
+}
+
+export const teamUpcomingEvents = async (teamId) => {
+  return fetchJSON(`${API_BASE}/sports/teams/${teamId}/events`)
+}
+
+export const comparePlayer = async (payload) => {
+  return fetchJSON(`${API_BASE}/sports/compare`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}
