@@ -396,13 +396,25 @@ async def extract_cycling_athletes(limit: int = 50) -> List[Dict[str, Any]]:
     rows = await get_cycling_rankings(limit=limit)
     athletes = []
     for r in rows:
+        # Normalize points: strip non-digits, fallback None
+        raw_pts = r.get('Points')
+        pts_val = None
+        if isinstance(raw_pts, (int, float)):
+            pts_val = raw_pts
+        elif isinstance(raw_pts, str):
+            cleaned = re.sub(r'[^0-9]', '', raw_pts)
+            if cleaned:
+                try:
+                    pts_val = int(cleaned)
+                except ValueError:  # pragma: no cover
+                    pts_val = None
         athletes.append({
             'id': f"cycling:{r.get('Rank')}",
             'name': r.get('Rider'),
             'country': None,
             'sport': 'cycling',
             'team': r.get('Team'),
-            'points': r.get('Points'),
+            'points': pts_val,
             'rank': r.get('Rank'),
         })
     return athletes

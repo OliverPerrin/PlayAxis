@@ -397,39 +397,49 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
     # Soccer (league style) – attempt league table
     league_id = _sport_to_league_id(sport_key)
     if league_id:
-        raw = await get_league_table(league_id)
         standings_rows = []
-        for row in raw:
-            standings_rows.append({
-                "Rank": row.get('intRank'),
-                "Team": row.get('strTeam'),
-                "Played": row.get('intPlayed') or row.get('intPlayedOverall'),
-                "Win": row.get('intWin') or row.get('intWins'),
-                "Draw": row.get('intDraw') or row.get('intTies'),
-                "Loss": row.get('intLoss') or row.get('intLosses'),
-                "GF": row.get('intGoalsFor') or row.get('intPointsFor'),
-                "GA": row.get('intGoalsAgainst') or row.get('intPointsAgainst'),
-                "GD": (
-                    (row.get('intGoalsFor') or 0) - (row.get('intGoalsAgainst') or 0)
-                    if (row.get('intGoalsFor') is not None and row.get('intGoalsAgainst') is not None) else None
-                ),
-                "Pts": row.get('intPoints') or row.get('points') or row.get('intWin'),
-            })
+        try:
+            raw = await get_league_table(league_id)
+            for row in raw:
+                standings_rows.append({
+                    "Rank": row.get('intRank'),
+                    "Team": row.get('strTeam'),
+                    "Played": row.get('intPlayed') or row.get('intPlayedOverall'),
+                    "Win": row.get('intWin') or row.get('intWins'),
+                    "Draw": row.get('intDraw') or row.get('intTies'),
+                    "Loss": row.get('intLoss') or row.get('intLosses'),
+                    "GF": row.get('intGoalsFor') or row.get('intPointsFor'),
+                    "GA": row.get('intGoalsAgainst') or row.get('intPointsAgainst'),
+                    "GD": (
+                        (row.get('intGoalsFor') or 0) - (row.get('intGoalsAgainst') or 0)
+                        if (row.get('intGoalsFor') is not None and row.get('intGoalsAgainst') is not None) else None
+                    ),
+                    "Pts": row.get('intPoints') or row.get('points') or row.get('intWin'),
+                })
+        except Exception as e:  # noqa: BLE001
+            logger.warning("League standings fetch fail league=%s err=%s", league_id, e)
         league_table = {
             "kind": "league",
             "name": "League Standings",
             "columns": ["Rank", "Team", "Played", "Win", "Draw", "Loss", "GF", "GA", "GD", "Pts"],
             "rows": standings_rows,
         }
-        # Placeholder for player stats / world rankings (not provided by current integration)
-        scorers_rows = await get_soccer_top_scorers(league_id)
+        try:
+            scorers_rows = await get_soccer_top_scorers(league_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Top scorers fetch fail league=%s err=%s", league_id, e)
+            scorers_rows = []
         players_table = {
             "kind": "players_top_scorers",
             "name": "Top Scorers",
             "columns": ["Rank", "Player", "Team", "Goals"],
             "rows": scorers_rows,
         }
-        fifa_rows = await get_fifa_world_rankings(limit=50)
+        try:
+            fifa_rows = await get_fifa_world_rankings(limit=50)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("FIFA rankings fetch fail err=%s", e)
+            fifa_rows = []
         world_rankings_table = {
             "kind": "world_rankings",
             "name": "FIFA World Rankings (Top 50)",
