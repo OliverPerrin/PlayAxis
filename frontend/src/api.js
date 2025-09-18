@@ -21,6 +21,18 @@ const getAPIUrl = () => {
 };
 
 const API_URL = getAPIUrl();
+// Alias kept for backward compatibility where we accidentally used API_BASE
+const API_BASE = API_URL;
+
+// Lightweight in-memory cache (non-persistent) for simple GET requests
+const __memCache = new Map(); // key -> { ts: number, data: any }
+const getCached = (key, ttlSeconds) => {
+  const entry = __memCache.get(key);
+  if (!entry) return null;
+  if ((Date.now() - entry.ts) / 1000 > ttlSeconds) { __memCache.delete(key); return null; }
+  return entry.data;
+};
+const setCached = (key, data) => { __memCache.set(key, { ts: Date.now(), data }); };
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
@@ -59,6 +71,19 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
     // Normalize network errors to helpful message
     throw new Error(`Can’t reach the server. Please check your connection and try again.`);
   }
+};
+
+// Generic JSON fetch wrapper used by new sports helpers
+const fetchJSON = async (url, options = {}) => {
+  const method = (options.method || 'GET').toUpperCase();
+  const headers = {
+    'Accept': 'application/json',
+    ...(method !== 'GET' ? { 'Content-Type': 'application/json' } : {}),
+    ...getAuthHeaders(),
+    ...(options.headers || {}),
+  };
+  const res = await fetchWithTimeout(url, { ...options, headers });
+  return handleResponse(res);
 };
 
 // --- Event helpers ---
@@ -296,21 +321,39 @@ export const getSportsEvents = async (sport = 'nfl') => {
 };
 
 export const listSports = async () => {
-  return fetchJSON(`${API_BASE}/sports/`)
-}
+  const cacheKey = 'sports:list';
+  const cached = getCached(cacheKey, 300); // 5 min
+  if (cached) return cached;
+  const data = await fetchJSON(`${API_URL}/sports/`);
+  setCached(cacheKey, data);
+  return data;
+};
 
 export const searchTeams = async (query) => {
-  const params = new URLSearchParams({ q: query })
-  return fetchJSON(`${API_BASE}/sports/teams/search?${params.toString()}`)
-}
+  const q = (query || '').trim();
+  if (!q) return { players: [] };
+  const cacheKey = `teams:search:${q.toLowerCase()}`;
+  const cached = getCached(cacheKey, 60); // 1 min
+  if (cached) return cached;
+  const params = new URLSearchParams({ q });
+  const data = await fetchJSON(`${API_URL}/sports/teams/search?${params.toString()}`);
+  setCached(cacheKey, data);
+  return data;
+};
 
 export const teamUpcomingEvents = async (teamId) => {
-  return fetchJSON(`${API_BASE}/sports/teams/${teamId}/events`)
-}
+  if (!teamId) return { team_id: null, upcoming: [] };
+  const cacheKey = `team:upcoming:${teamId}`;
+  const cached = getCached(cacheKey, 120); // 2 min
+  if (cached) return cached;
+  const data = await fetchJSON(`${API_URL}/sports/teams/${teamId}/events`);
+  setCached(cacheKey, data);
+  return data;
+};
 
 export const comparePlayer = async (payload) => {
-  return fetchJSON(`${API_BASE}/sports/compare`, {
+  return fetchJSON(`${API_URL}/sports/compare`, {
     method: 'POST',
     body: JSON.stringify(payload)
-  })
-}
+  });
+};
