@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 import { motion } from 'framer-motion';
 import {
   TrophyIcon,
@@ -65,13 +66,14 @@ const TIMEFRAMES = [
 ];
 
 const LeaderboardsPage = () => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [category, setCategory] = useState('overall');
   const [timeframe, setTimeframe] = useState('monthly');
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
-  const { theme } = useContext(ThemeContext);
-  const isDark = theme === 'dark';
+  // removed direct ThemeContext usage in favor of useTheme hook
 
   // Top 3 cached subset for podium
   const top3 = useMemo(() => rows.slice(0, 3), [rows]);
