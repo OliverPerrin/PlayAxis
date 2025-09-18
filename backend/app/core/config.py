@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     # API Keys
     TWITCH_CLIENT_ID: str | None = None
     TWITCH_ACCESS_TOKEN: str | None = None
-    X_RapidAPI_KEY: str | None = None
     TWITCH_CLIENT_SECRET: str | None = None
-
+    THESPORTSDB_API_KEY: str | None = None
+    
     # SerpApi / Google Events
     SERPAPI_API_KEY: str | None = None
     GOOGLE_EVENTS_HL: str = "en"  # language
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # API URLs
     WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
     TWITCH_API_URL: str = "https://api.twitch.tv/helix/"
-    SPORTSBOOK_API_URL: str = "https://sportsradar-sportsbook-api.p.rapidapi.com"
+    THESPORTSDB_API_URL: str = "https://www.thesportsdb.com/api/v1/json"
 
     # Contact / Email (optional)
     CONTACT_RECIPIENT_EMAIL: str | None = None
