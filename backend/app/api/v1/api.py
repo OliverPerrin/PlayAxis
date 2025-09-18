@@ -10,6 +10,8 @@ from .endpoints.aggregate import router as aggregate_router
 from .endpoints.leaderboards import router as leaderboards_router
 from .endpoints.contact import router as contact_router
 from .endpoints.google_events_debug import router as google_events_debug_router
+from .endpoints.athletes import router as athletes_router
+from .endpoints.workouts import router as workouts_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -22,3 +24,5 @@ api_router.include_router(aggregate_router, prefix="/aggregate", tags=["aggregat
 api_router.include_router(leaderboards_router, prefix="/leaderboards", tags=["leaderboards"])
 api_router.include_router(contact_router, prefix="/contact", tags=["contact"])
 api_router.include_router(google_events_debug_router, prefix="/google-events", tags=["google-events-debug"])
+api_router.include_router(athletes_router)
+api_router.include_router(workouts_router)

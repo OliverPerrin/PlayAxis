@@ -26,7 +26,7 @@ const SportSelector = ({ value, onChange, className = '', condensed = false }) =
   }, [sports, value, onChange]);
 
   return (
-    <div className={`flex gap-2 flex-wrap ${condensed ? 'max-w-full' : 'max-w-4xl'} ${className}`}> 
+  <div className={`flex gap-2 flex-wrap overflow-x-auto scrollbar-thin py-1 ${condensed ? 'max-w-full' : 'max-w-4xl'} ${className}`}> 
       {sports.map(sp => {
         const active = sp.key === value;
         return (

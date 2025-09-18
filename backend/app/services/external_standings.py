@@ -128,7 +128,36 @@ async def get_soccer_top_scorers(league_id: str, season: Optional[str] = None, l
     """
     if not league_id:
         return []
-
+    params = {"l": league_id}
+    if season:
+        params["s"] = season
+    cache_key = f"topsoc:{league_id}:{season}".lower()
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return cached
+    base = "https://www.thesportsdb.com/api/v1/json/3/topscorers.php"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(base, params=params)
+            if r.status_code != 200:
+                await cache.set(cache_key, [], 300)
+                return []
+            data = r.json()
+            scorers = data.get('topscorers') or []
+            rows = []
+            for idx, s in enumerate(scorers[:limit]):
+                rows.append({
+                    'Rank': idx + 1,
+                    'Player': s.get('strPlayer'),
+                    'Team': s.get('strTeam'),
+                    'Goals': s.get('intGoals') or s.get('intGoalsOverall') or s.get('intGoal') or None,
+                })
+            await cache.set(cache_key, rows, 1800)  # 30 min
+            return rows
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Top scorers fetch fail league=%s err=%s", league_id, e)
+        await cache.set(cache_key, [], 600)
+        return []
 
 # -------- Additional Sports Ranking Scrapers -------- #
 
@@ -346,34 +375,51 @@ async def get_esports_rankings(limit: int = 25) -> List[Dict[str, Any]]:
         return rows_out
     return await _cached_table_rows(f"esports_highest:{limit}", url, parse)
 
-    params = {"l": league_id}
-    if season:
-        params["s"] = season
-    # Use existing SportsDB _get_json would need import; replicate minimal fetch inline to avoid cycle.
-    cache_key = f"topsoc:{league_id}:{season}".lower()
-    cached = await cache.get(cache_key)
-    if cached is not None:
-        return cached
-    base = "https://www.thesportsdb.com/api/v1/json/3/topscorers.php"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(base, params=params)
-            if r.status_code != 200:
-                await cache.set(cache_key, [], 300)
-                return []
-            data = r.json()
-            scorers = data.get('topscorers') or []
-            rows = []
-            for idx, s in enumerate(scorers[:limit]):
-                rows.append({
-                    'Rank': idx + 1,
-                    'Player': s.get('strPlayer'),
-                    'Team': s.get('strTeam'),
-                    'Goals': s.get('intGoals') or s.get('intGoalsOverall') or s.get('intGoal') or None,
-                })
-            await cache.set(cache_key, rows, 1800)  # 30 min
-            return rows
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Top scorers fetch fail league=%s err=%s", league_id, e)
-        await cache.set(cache_key, [], 600)
-        return []
+
+# ------- Athlete extraction helpers for Compare Page (skiing, running, cycling) ------- #
+
+async def extract_skiing_athletes(limit: int = 50) -> List[Dict[str, Any]]:
+    rows = await get_skiing_standings(limit=limit)
+    athletes = []
+    for r in rows:
+        athletes.append({
+            'id': f"skiing:{r.get('Rank')}",
+            'name': r.get('Athlete'),
+            'country': r.get('Nation'),
+            'sport': 'skiing',
+            'points': r.get('Points'),
+            'rank': r.get('Rank'),
+        })
+    return athletes
+
+async def extract_cycling_athletes(limit: int = 50) -> List[Dict[str, Any]]:
+    rows = await get_cycling_rankings(limit=limit)
+    athletes = []
+    for r in rows:
+        athletes.append({
+            'id': f"cycling:{r.get('Rank')}",
+            'name': r.get('Rider'),
+            'country': None,
+            'sport': 'cycling',
+            'team': r.get('Team'),
+            'points': r.get('Points'),
+            'rank': r.get('Rank'),
+        })
+    return athletes
+
+async def extract_running_athletes(limit: int = 30) -> List[Dict[str, Any]]:
+    # Use world record holders as reference 'athletes'
+    rows = await get_running_records(limit=limit)
+    athletes = []
+    for idx, r in enumerate(rows):
+        athletes.append({
+            'id': f"running:{idx+1}",
+            'name': r.get('Athlete'),
+            'country': r.get('Nation'),
+            'sport': 'running',
+            'points': None,
+            'rank': idx + 1,
+            'event': r.get('Event'),
+            'performance': r.get('Performance'),
+        })
+    return athletes

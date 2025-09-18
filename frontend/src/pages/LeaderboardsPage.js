@@ -47,7 +47,7 @@ const LeaderboardsPage = () => {
   const sub = isDark ? 'text-gray-300' : 'text-slate-600';
   const surface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
   const surfaceCls = `${surface} rounded-2xl`;
-  const tableHead = isDark ? 'bg-white/5 text-gray-300' : 'bg-slate-100 text-slate-600';
+  const tableHead = isDark ? 'bg-white/5 text-gray-200 text-sm md:text-base' : 'bg-slate-100 text-slate-600 text-sm md:text-base';
   const rowBorder = isDark ? 'border-t border-white/10' : 'border-t border-slate-200';
 
   return (
@@ -89,7 +89,7 @@ const LeaderboardsPage = () => {
               <span className={`text-xs uppercase tracking-wide ${sub}`}>{tbl.kind}</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm md:text-base">
                 <thead className={tableHead}>
                   <tr>
                     {tbl.columns.map(col => (
@@ -103,9 +103,10 @@ const LeaderboardsPage = () => {
                   )}
                   {tbl.rows.map((r, idx) => (
                     <tr key={idx} className={rowBorder}>
-                      {tbl.columns.map(col => (
-                        <td key={col} className="py-2 px-3 whitespace-nowrap">{r[col] !== undefined ? r[col] : r[col.toLowerCase()] || r[col.replace(/ /g,'_').toLowerCase()] || ''}</td>
-                      ))}
+                      {tbl.columns.map(col => {
+                        const val = r[col] !== undefined ? r[col] : (r[col.toLowerCase()] || r[col.replace(/ /g,'_').toLowerCase()] || '');
+                        return <td key={col} className="py-2 px-3 whitespace-nowrap text-[13px] md:text-sm lg:text-base">{val}</td>;
+                      })}
                     </tr>
                   ))}
                 </tbody>

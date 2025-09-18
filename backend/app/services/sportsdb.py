@@ -33,7 +33,13 @@ SPORT_ALIAS: Dict[str, Tuple[str, Optional[str]]] = {
     "mlb": ("Baseball", "MLB"),
     "nhl": ("Ice Hockey", "NHL"),
     "epl": ("Soccer", "English Premier League"),
-    "soccer": ("Soccer", None),
+    # Map generic 'soccer' to EPL so users selecting 'soccer' get a league table
+    "soccer": ("Soccer", "EPL"),
+    # Generic sport keys (as returned by API) mapped to major leagues
+    "american_football": ("American Football", "NFL"),
+    "basketball": ("Basketball", "NBA"),
+    "baseball": ("Baseball", "MLB"),
+    "ice_hockey": ("Ice Hockey", "NHL"),
     # Additional common aliases
     "f1": ("Motorsport", None),
     "formula1": ("Motorsport", None),

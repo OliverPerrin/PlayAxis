@@ -357,3 +357,18 @@ export const comparePlayer = async (payload) => {
     body: JSON.stringify(payload)
   });
 };
+
+// Athlete (user vs pro) comparison endpoints
+export const searchAthletes = async (sport, query='', limit=50) => {
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  if (limit) params.set('limit', String(limit));
+  return fetchJSON(`${API_URL}/athletes/${encodeURIComponent(sport)}?${params.toString()}`);
+};
+
+export const compareAthlete = async (payload) => {
+  return fetchJSON(`${API_URL}/athletes/compare`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
