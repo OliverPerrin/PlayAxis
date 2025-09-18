@@ -5,7 +5,7 @@ import { buildUnifiedSports } from '../utils/sports';
 
 // Reusable pill-based sport selector
 // Props: value (string), onChange (fn), className (optional), condensed (bool)
-const SportSelector = ({ value, onChange, className = '', condensed = false }) => {
+const SportSelector = ({ value, onChange, className = '', condensed = false, allowKeys = null }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [apiSports, setApiSports] = useState([]);
@@ -16,7 +16,11 @@ const SportSelector = ({ value, onChange, className = '', condensed = false }) =
     return () => { active = false; };
   }, []);
 
-  const sports = useMemo(() => buildUnifiedSports(apiSports), [apiSports]);
+  const sports = useMemo(() => {
+    const built = buildUnifiedSports(apiSports);
+    if (!allowKeys) return built;
+    return built.filter(s => allowKeys.includes(s.key));
+  }, [apiSports, allowKeys]);
 
   // Auto-select default if current value not present
   useEffect(() => {

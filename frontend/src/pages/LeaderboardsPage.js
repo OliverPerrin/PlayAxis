@@ -45,10 +45,13 @@ const LeaderboardsPage = () => {
 
   const heading = isDark ? 'text-white' : 'text-slate-900';
   const sub = isDark ? 'text-gray-300' : 'text-slate-600';
-  const surface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
+  const surface = isDark ? 'bg-white/10 border border-white/20 backdrop-blur-sm' : 'bg-white border border-slate-200 shadow-sm';
   const surfaceCls = `${surface} rounded-2xl`;
-  const tableHead = isDark ? 'bg-white/5 text-gray-200 text-sm md:text-base' : 'bg-slate-100 text-slate-600 text-sm md:text-base';
+  const tableHead = isDark ? 'bg-white/10 text-gray-200' : 'bg-slate-100 text-slate-700';
   const rowBorder = isDark ? 'border-t border-white/10' : 'border-t border-slate-200';
+  const cellBase = 'py-2.5 px-3 whitespace-nowrap align-middle';
+  const zebraDark = 'odd:bg-white/0 even:bg-white/[0.03] hover:bg-white/10';
+  const zebraLight = 'odd:bg-white even:bg-slate-50 hover:bg-emerald-50/60';
 
   return (
     <div className="min-h-screen p-6">
@@ -77,43 +80,49 @@ const LeaderboardsPage = () => {
           </div>
         </div>
 
-  {loading && <div className={`${sub} flex items-center gap-2`}><TrophyIcon className="w-5 h-5" /> Loading standings...</div>}
+  {loading && <div className={`${sub} flex items-center gap-2 text-sm md:text-base`}><TrophyIcon className="w-5 h-5" /> Loading standings...</div>}
         {!loading && data.tables && data.tables.length === 0 && (
           <div className={`${surfaceCls} p-6 text-sm ${sub}`}>No standings available for this sport yet.</div>
         )}
 
-        {!loading && data.tables && data.tables.map(tbl => (
-          <div key={tbl.kind} className={`${surfaceCls} p-6 space-y-4`}> 
-            <div className="flex items-center justify-between">
-              <h2 className={`text-xl font-semibold ${heading}`}>{tbl.name}</h2>
-              <span className={`text-xs uppercase tracking-wide ${sub}`}>{tbl.kind}</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm md:text-base">
-                <thead className={tableHead}>
-                  <tr>
-                    {tbl.columns.map(col => (
-                      <th key={col} className="py-2 px-3 font-medium">{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tbl.rows.length === 0 && (
-                    <tr><td colSpan={tbl.columns.length} className="py-4 text-center text-xs opacity-60">No data</td></tr>
-                  )}
-                  {tbl.rows.map((r, idx) => (
-                    <tr key={idx} className={rowBorder}>
-                      {tbl.columns.map(col => {
-                        const val = r[col] !== undefined ? r[col] : (r[col.toLowerCase()] || r[col.replace(/ /g,'_').toLowerCase()] || '');
-                        return <td key={col} className="py-2 px-3 whitespace-nowrap text-[13px] md:text-sm lg:text-base">{val}</td>;
-                      })}
+        {!loading && data.tables && data.tables.map(tbl => {
+          const empty = tbl.rows.length === 0;
+          const rows = empty ? [{ __placeholder: true }] : tbl.rows;
+          return (
+            <div key={tbl.kind} className={`${surfaceCls} p-6 space-y-4`}> 
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h2 className={`text-xl md:text-2xl font-semibold tracking-wide ${heading}`}>{tbl.name}</h2>
+                <span className={`text-[10px] md:text-xs uppercase tracking-wide ${sub}`}>{tbl.kind}</span>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-transparent">
+                <table className="w-full text-left text-[13px] md:text-sm lg:text-base">
+                  <thead className={`${tableHead} sticky top-0 z-10 text-xs md:text-sm lg:text-base`}> 
+                    <tr>
+                      {tbl.columns.map(col => (
+                        <th key={col} className="py-2.5 px-3 font-semibold tracking-wide first:rounded-tl-xl last:rounded-tr-xl">{col}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className={`${isDark ? zebraDark : zebraLight} text-[13px] md:text-sm`}>
+                    {rows.map((r, idx) => (
+                      <tr key={idx} className={`${rowBorder} transition-colors`}>
+                        {tbl.columns.map(col => {
+                          if (r.__placeholder) {
+                            return idx === 0 ? (
+                              <td key={col} colSpan={tbl.columns.length} className={`${cellBase} text-center text-xs md:text-sm italic opacity-70`}>Data updating – check back soon.</td>
+                            ) : null;
+                          }
+                          const val = r[col] !== undefined ? r[col] : (r[col.toLowerCase()] || r[col.replace(/ /g,'_').toLowerCase()] || '');
+                          return <td key={col} className={`${cellBase} text-slate-800 dark:text-gray-100`}>{val}</td>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

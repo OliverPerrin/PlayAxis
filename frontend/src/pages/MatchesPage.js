@@ -46,11 +46,15 @@ const MatchesPage = () => {
   const surfaceCls = `rounded-2xl p-4 border ${surface}`;
 
   const EventCard = ({ ev }) => (
-    <div className={`rounded-xl p-3 text-sm flex flex-col gap-1 border ${isDark ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'} shadow-sm`}> 
-      <div className="font-semibold">{ev.home_team} vs {ev.away_team}</div>
-      <div className="opacity-70">{ev.date} {ev.time || ''}</div>
-      <div className="opacity-60 text-xs">{ev.venue || ev.city || ev.league}</div>
-      {ev.status && <div className="text-xs uppercase tracking-wide opacity-70">{ev.status}</div>}
+    <div className={`rounded-xl p-4 text-sm md:text-base flex flex-col gap-1.5 border ${isDark ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'} shadow-sm`}> 
+      <div className="font-semibold tracking-wide">{ev.home_team} <span className="text-emerald-500">vs</span> {ev.away_team}</div>
+      <div className={`${isDark ? 'text-gray-200' : 'text-slate-700'} text-xs md:text-sm font-medium`}>{ev.date} {ev.time || ''}</div>
+      <div className={`${isDark ? 'text-gray-400' : 'text-slate-500'} text-[11px] md:text-xs`}>{ev.venue || ev.city || ev.league}</div>
+      {ev.status && (
+        <div className={`text-[10px] md:text-xs uppercase tracking-wide ${isDark ? 'text-cyan-300' : 'text-emerald-600'}`}>
+          {ev.status}
+        </div>
+      )}
     </div>
   );
 
@@ -83,7 +87,7 @@ const MatchesPage = () => {
 
         <div className="grid md:grid-cols-3 gap-6">
           <div className={surfaceCls}>
-            <h2 className={`font-semibold mb-3 ${heading}`}>Upcoming ({snapshot.upcoming.length})</h2>
+            <h2 className={`font-semibold mb-4 text-lg md:text-xl ${heading}`}>Upcoming ({snapshot.upcoming.length})</h2>
             <div className="space-y-3">
               {loading && <div className="text-xs opacity-60 animate-pulse">Loading...</div>}
               {!loading && snapshot.upcoming.slice(0, 15).map(e => <EventCard key={e.id} ev={e} />)}
@@ -91,7 +95,7 @@ const MatchesPage = () => {
             </div>
           </div>
           <div className={surfaceCls}>
-            <h2 className={`font-semibold mb-3 ${heading}`}>Recent ({snapshot.recent.length})</h2>
+            <h2 className={`font-semibold mb-4 text-lg md:text-xl ${heading}`}>Recent ({snapshot.recent.length})</h2>
             <div className="space-y-3">
               {loading && <div className="text-xs opacity-60 animate-pulse">Loading...</div>}
               {!loading && snapshot.recent.slice(0, 15).map(e => <EventCard key={e.id} ev={e} />)}
@@ -99,7 +103,7 @@ const MatchesPage = () => {
             </div>
           </div>
           <div className={surfaceCls}>
-            <h2 className={`font-semibold mb-3 ${heading}`}>Team Upcoming</h2>
+            <h2 className={`font-semibold mb-4 text-lg md:text-xl ${heading}`}>Team Upcoming</h2>
             <div className="space-y-3">
               {teamUpcoming.map(e => <EventCard key={e.id} ev={e} />)}
               {teamUpcoming.length === 0 && <div className="text-xs opacity-50">Select a team to view.</div>}

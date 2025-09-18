@@ -6,7 +6,6 @@ import SportSelector from '../components/SportSelector';
 
 const ComparePage = () => {
   const [left, setLeft] = useState('You');
-  const [right, setRight] = useState('Pro Athlete');
   const [selectedSport, setSelectedSport] = useState('running');
   const [query, setQuery] = useState('');
   const [athleteResults, setAthleteResults] = useState([]);
@@ -37,7 +36,6 @@ const ComparePage = () => {
     const h = setTimeout(() => {
       setSearching(true);
       searchAthletes(selectedSport, query, 25).then(res => {
-        setAthleteResults(res.athletes || []);
         setSearching(false);
       }).catch(() => setSearching(false));
     }, 350);
@@ -78,7 +76,7 @@ const ComparePage = () => {
             </div>
             <div>
               <label className={`block mb-2 ${heading}`}>Sport</label>
-              <SportSelector value={selectedSport} onChange={setSelectedSport} condensed />
+              <SportSelector value={selectedSport} onChange={setSelectedSport} condensed allowKeys={['running','cycling','skiing']} />
             </div>
             <div>
               <label className={`block mb-2 ${heading}`}>Search Athlete</label>
