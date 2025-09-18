@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { listSports, getSportsEvents, searchTeams, teamUpcomingEvents } from '../api';
+import { getSportsEvents, searchTeams, teamUpcomingEvents } from '../api';
 import { useTheme } from '../contexts/ThemeContext';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import SportSelector from '../components/SportSelector';
 
 const MatchesPage = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [sports, setSports] = useState([]);
-  const [sportKey, setSportKey] = useState('nfl');
+  const [sportKey, setSportKey] = useState('soccer');
   const [snapshot, setSnapshot] = useState({ upcoming: [], recent: [] });
   const [loading, setLoading] = useState(false);
   const [teamQuery, setTeamQuery] = useState('');
@@ -15,11 +15,7 @@ const MatchesPage = () => {
   const [teamUpcoming, setTeamUpcoming] = useState([]);
   const [searchingTeams, setSearchingTeams] = useState(false);
 
-  useEffect(() => {
-    listSports().then(data => {
-      if (data && Array.isArray(data.sports)) setSports(data.sports);
-    });
-  }, []);
+  // sport list handled in SportSelector
 
   useEffect(() => {
     setLoading(true);
@@ -66,12 +62,8 @@ const MatchesPage = () => {
             <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Matches</h1>
             <p className={isDark ? 'text-gray-300' : 'text-slate-600'}>Browse upcoming and recent events across all sports.</p>
           </div>
-          <div className="flex gap-3">
-            <select value={sportKey} onChange={e => setSportKey(e.target.value)} className={`px-4 py-2 rounded-xl ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}>
-              {sports.map(s => (
-                <option key={s.idSport || s.strSport} value={(s.strSport || '').toLowerCase()}>{s.strSport}</option>
-              ))}
-            </select>
+          <div className="flex gap-3 items-start">
+            <SportSelector value={sportKey} onChange={setSportKey} condensed />
             <div className="relative w-64">
               <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-2.5 opacity-60" />
               <input value={teamQuery} onChange={e => setTeamQuery(e.target.value)} placeholder="Search team" className={`w-full pl-10 px-4 py-2 rounded-xl ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-900'}`} />

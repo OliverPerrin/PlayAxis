@@ -8,6 +8,13 @@ from app.services.external_standings import (
     get_fifa_world_rankings,
     get_skiing_standings,
     get_soccer_top_scorers,
+    get_tennis_rankings,
+    get_golf_rankings,
+    get_cricket_rankings,
+    get_rugby_rankings,
+    get_cycling_rankings,
+    get_running_records,
+    get_esports_rankings,
 )
 
 logger = logging.getLogger(__name__)
@@ -338,6 +345,48 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                 }
             ],
         }
+
+    if skey in {"tennis"}:
+        atp = await get_tennis_rankings(limit=50)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "tennis_atp", "name": "ATP Singles Rankings (Top 50)", "columns": ["Rank", "Player", "Country", "Points"], "rows": atp}
+        ]}
+
+    if skey in {"golf"}:
+        owgr = await get_golf_rankings(limit=50)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "golf_owgr", "name": "Official World Golf Ranking (Top 50)", "columns": ["Rank", "Player", "Country", "Points"], "rows": owgr}
+        ]}
+
+    if skey in {"cricket"}:
+        odi = await get_cricket_rankings(limit=30)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "cricket_odi", "name": "ICC Men's ODI Team Rankings", "columns": ["Rank", "Team", "Matches", "Rating"], "rows": odi}
+        ]}
+
+    if skey in {"rugby"}:
+        rw = await get_rugby_rankings(limit=30)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "rugby_world", "name": "World Rugby Rankings", "columns": ["Rank", "Team", "Points"], "rows": rw}
+        ]}
+
+    if skey in {"cycling"}:
+        uci = await get_cycling_rankings(limit=50)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "cycling_uci", "name": "UCI World Ranking Riders", "columns": ["Rank", "Rider", "Team", "Points"], "rows": uci}
+        ]}
+
+    if skey in {"running", "athletics"}:
+        recs = await get_running_records(limit=20)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "running_records", "name": "Selected Track World Records (Men)", "columns": ["Event", "Performance", "Athlete", "Nation"], "rows": recs}
+        ]}
+
+    if skey in {"esports", "e-sports"}:
+        ers = await get_esports_rankings(limit=25)
+        return {"sport": sport_key, "league_id": None, "tables": [
+            {"kind": "esports_earnings", "name": "Highest Earning Esports Players", "columns": ["Rank", "Player", "Country", "Earnings"], "rows": ers}
+        ]}
 
     # Soccer (league style) – attempt league table
     league_id = _sport_to_league_id(sport_key)

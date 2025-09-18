@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { listSports } from '../api';
+import { TrophyIcon } from '@heroicons/react/24/outline';
+import { buildUnifiedSports } from '../utils/sports';
 
 const fetchStandings = async (sportKey) => {
   try {
@@ -56,18 +58,26 @@ const LeaderboardsPage = () => {
             <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Standings</h1>
             <p className={sub}>Multi-sport standings: league tables, championships & placeholders where data is pending.</p>
           </div>
-          <div>
-            <select value={selectedSport} onChange={e => setSelectedSport(e.target.value)} className={`px-4 py-2 rounded-xl ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-900'}`}>
-              {sports.map(s => (
-                <option key={s.idSport || s.strSport} value={(s.strSport || '').toLowerCase().replace(/\s+/g,'_')}>{s.strSport}</option>
-              ))}
-              {/* ensure some common aliases always visible */}
-              {['f1','skiing'].map(k => (!sports.some(s => (s.strSport||'').toLowerCase() === k) ? <option key={k} value={k}>{k.toUpperCase()}</option> : null))}
-            </select>
+          <div className="flex flex-wrap gap-2 max-w-3xl justify-end">
+            {buildUnifiedSports(sports).map(sp => {
+              const active = sp.key === selectedSport;
+              return (
+                <button
+                  key={sp.key}
+                  type="button"
+                  onClick={() => setSelectedSport(sp.key)}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition border
+                    ${active ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white border-transparent shadow' : (isDark ? 'bg-white/5 hover:bg-white/10 border-white/10 text-gray-300' : 'bg-white border-slate-200 hover:border-emerald-400 hover:text-emerald-700')}`}
+                >
+                  <span>{sp.icon}</span>
+                  <span>{sp.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {loading && <div className={sub}>Loading standings...</div>}
+  {loading && <div className={`${sub} flex items-center gap-2`}><TrophyIcon className="w-5 h-5" /> Loading standings...</div>}
         {!loading && data.tables && data.tables.length === 0 && (
           <div className={`${surfaceCls} p-6 text-sm ${sub}`}>No standings available for this sport yet.</div>
         )}

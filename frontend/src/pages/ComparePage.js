@@ -1,7 +1,8 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { ArrowsRightLeftIcon, TrophyIcon, BoltIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { ThemeContext } from '../contexts/ThemeContext';
-import { listSports, searchTeams, getSportsEvents, comparePlayer, teamUpcomingEvents } from '../api';
+import { searchTeams, getSportsEvents, comparePlayer, teamUpcomingEvents } from '../api';
+import SportSelector from '../components/SportSelector';
 
 const ComparePage = () => {
   const [left, setLeft] = useState('You');
@@ -10,8 +11,7 @@ const ComparePage = () => {
   const [rows, setRows] = useState([]);
   const [snapshot, setSnapshot] = useState({ upcoming: [], recent: [] });
   const [teamUpcoming, setTeamUpcoming] = useState([]);
-  const [sports, setSports] = useState([]);
-  const [selectedSport, setSelectedSport] = useState('nfl');
+  const [selectedSport, setSelectedSport] = useState('soccer');
   const [teamQuery, setTeamQuery] = useState('');
   const [teamResults, setTeamResults] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -21,13 +21,7 @@ const ComparePage = () => {
   const [searchingTeams, setSearchingTeams] = useState(false);
   const [comparing, setComparing] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    listSports().then(data => {
-      if (mounted && data && Array.isArray(data.sports)) setSports(data.sports);
-    });
-    return () => { mounted = false; };
-  }, []);
+  // sport list handled inside SportSelector component
 
   // Fetch league snapshot events for selected sport
   useEffect(() => {
@@ -125,11 +119,7 @@ const ComparePage = () => {
             </div>
             <div>
               <label className={`block mb-2 ${heading}`}>Sport</label>
-              <select value={selectedSport} onChange={e => setSelectedSport(e.target.value)} className={`w-full px-4 py-2 rounded-xl ${inputCls}`}>
-                {sports.map(s => (
-                  <option key={s.idSport || s.strSport} value={(s.strSport || '').toLowerCase()}>{s.strSport}</option>
-                ))}
-              </select>
+              <SportSelector value={selectedSport} onChange={setSelectedSport} condensed />
             </div>
             <div>
               <label className={`block mb-2 ${heading}`}>Search Team</label>

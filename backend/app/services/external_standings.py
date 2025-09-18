@@ -128,6 +128,224 @@ async def get_soccer_top_scorers(league_id: str, season: Optional[str] = None, l
     """
     if not league_id:
         return []
+
+
+# -------- Additional Sports Ranking Scrapers -------- #
+
+async def _cached_table_rows(cache_key: str, url: str, parse_fn, ttl: int = WIKI_TTL) -> List[Dict[str, Any]]:
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return cached
+    html = await _fetch(url, ttl=ttl)
+    if not html:
+        return []
+    try:
+        rows = parse_fn(html)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Parse failure key=%s err=%s", cache_key, e)
+        rows = []
+    await cache.set(cache_key, rows, ttl)
+    return rows
+
+
+async def get_tennis_rankings(limit: int = 50) -> List[Dict[str, Any]]:
+    """Scrape ATP singles rankings (top n) from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/ATP_rankings"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        tables = soup.find_all('table', {'class': 'wikitable'})
+        rows_out = []
+        for tbl in tables:
+            # heuristic: find header containing 'Ranking' and 'Points'
+            headers = [h.get_text(strip=True).lower() for h in tbl.find_all('th')[:6]]
+            if not any('points' in h for h in headers):
+                continue
+            for tr in tbl.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 4:
+                    continue
+                rank_txt = tds[0].get_text(strip=True)
+                try:
+                    rank = int(rank_txt.split('=')[0])
+                except ValueError:
+                    continue
+                name = tds[1].get_text(strip=True)
+                country = tds[2].get_text(strip=True)
+                points_raw = tds[3].get_text(strip=True)
+                try:
+                    pts = int(points_raw.replace(',', ''))
+                except ValueError:
+                    pts = None
+                rows_out.append({'Rank': rank, 'Player': name, 'Country': country, 'Points': pts})
+                if len(rows_out) >= limit:
+                    return rows_out
+        return rows_out
+    return await _cached_table_rows(f"tennis_atp:{limit}", url, parse)
+
+
+async def get_golf_rankings(limit: int = 50) -> List[Dict[str, Any]]:
+    """Scrape OWGR top players from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/Official_World_Golf_Ranking"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        tables = soup.find_all('table', {'class': 'wikitable'})
+        rows_out = []
+        for tbl in tables:
+            # Look for header with 'OWGR' or 'Ranking'
+            headers = [h.get_text(strip=True).lower() for h in tbl.find_all('th')]
+            if not any('ranking' in h or 'owgr' in h for h in headers):
+                continue
+            for tr in tbl.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 4:
+                    continue
+                rank_txt = tds[0].get_text(strip=True)
+                try:
+                    rank = int(rank_txt)
+                except ValueError:
+                    continue
+                name = tds[1].get_text(strip=True)
+                country = tds[2].get_text(strip=True)
+                points_raw = tds[3].get_text(strip=True)
+                try:
+                    pts = float(points_raw.replace(',', ''))
+                except ValueError:
+                    pts = None
+                rows_out.append({'Rank': rank, 'Player': name, 'Country': country, 'Points': pts})
+                if len(rows_out) >= limit:
+                    return rows_out
+        return rows_out
+    return await _cached_table_rows(f"golf_owgr:{limit}", url, parse)
+
+
+async def get_cricket_rankings(limit: int = 30) -> List[Dict[str, Any]]:
+    """Scrape ICC Men's ODI team rankings from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/ICC_Men%27s_ODI_Team_Rankings"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        table = soup.find('table', {'class': 'wikitable'})
+        rows_out = []
+        if table:
+            for tr in table.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 5:
+                    continue
+                try:
+                    rank = int(tds[0].get_text(strip=True))
+                except ValueError:
+                    continue
+                team = tds[1].get_text(strip=True)
+                matches = tds[2].get_text(strip=True)
+                rating = tds[4].get_text(strip=True)
+                rows_out.append({'Rank': rank, 'Team': team, 'Matches': matches, 'Rating': rating})
+                if len(rows_out) >= limit:
+                    break
+        return rows_out
+    return await _cached_table_rows(f"cricket_odi:{limit}", url, parse)
+
+
+async def get_rugby_rankings(limit: int = 30) -> List[Dict[str, Any]]:
+    """Scrape World Rugby Rankings from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/World_Rugby_Rankings"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        table = soup.find('table', {'class': 'wikitable'})
+        rows_out = []
+        if table:
+            for tr in table.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 5:
+                    continue
+                try:
+                    rank = int(tds[0].get_text(strip=True))
+                except ValueError:
+                    continue
+                team = tds[1].get_text(strip=True)
+                points = tds[4].get_text(strip=True)
+                rows_out.append({'Rank': rank, 'Team': team, 'Points': points})
+                if len(rows_out) >= limit:
+                    break
+        return rows_out
+    return await _cached_table_rows(f"rugby_world:{limit}", url, parse)
+
+
+async def get_cycling_rankings(limit: int = 50) -> List[Dict[str, Any]]:
+    """Scrape UCI World Ranking riders from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/UCI_World_Ranking"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        tables = soup.find_all('table', {'class': 'wikitable'})
+        rows_out = []
+        for tbl in tables:
+            headers = [h.get_text(strip=True).lower() for h in tbl.find_all('th')]
+            if not any('rider' in h for h in headers):
+                continue
+            for tr in tbl.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 4:
+                    continue
+                try:
+                    rank = int(tds[0].get_text(strip=True))
+                except ValueError:
+                    continue
+                name = tds[1].get_text(strip=True)
+                team = tds[2].get_text(strip=True)
+                pts_raw = tds[3].get_text(strip=True)
+                rows_out.append({'Rank': rank, 'Rider': name, 'Team': team, 'Points': pts_raw})
+                if len(rows_out) >= limit:
+                    return rows_out
+        return rows_out
+    return await _cached_table_rows(f"cycling_uci:{limit}", url, parse)
+
+
+async def get_running_records(limit: int = 20) -> List[Dict[str, Any]]:
+    """Scrape selected world records in athletics (men) from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/List_of_world_records_in_athletics"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        tables = soup.find_all('table', {'class': 'wikitable'})
+        rows_out = []
+        for tbl in tables[:3]:  # just early tables for brevity
+            for tr in tbl.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 5:
+                    continue
+                event = tds[0].get_text(strip=True)
+                perf = tds[1].get_text(strip=True)
+                athlete = tds[2].get_text(strip=True)
+                nation = tds[3].get_text(strip=True)
+                rows_out.append({'Event': event, 'Performance': perf, 'Athlete': athlete, 'Nation': nation})
+                if len(rows_out) >= limit:
+                    return rows_out
+        return rows_out
+    return await _cached_table_rows(f"running_records:{limit}", url, parse)
+
+
+async def get_esports_rankings(limit: int = 25) -> List[Dict[str, Any]]:
+    """Scrape highest-earning esports players (cumulative) from Wikipedia."""
+    url = "https://en.wikipedia.org/wiki/List_of_highest-paid_esports_players"
+    def parse(html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        table = soup.find('table', {'class': 'wikitable'})
+        rows_out = []
+        if table:
+            for tr in table.find_all('tr')[1:]:
+                tds = tr.find_all('td')
+                if len(tds) < 4:
+                    continue
+                try:
+                    rank = int(tds[0].get_text(strip=True))
+                except ValueError:
+                    continue
+                player = tds[1].get_text(strip=True)
+                country = tds[2].get_text(strip=True)
+                earnings = tds[3].get_text(strip=True)
+                rows_out.append({'Rank': rank, 'Player': player, 'Country': country, 'Earnings': earnings})
+                if len(rows_out) >= limit:
+                    break
+        return rows_out
+    return await _cached_table_rows(f"esports_highest:{limit}", url, parse)
+
     params = {"l": league_id}
     if season:
         params["s"] = season
