@@ -284,7 +284,7 @@ const DiscoverPage = () => {
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Discover Events</h1>
-          <p className={`text-lg ${sub}`}>Find and join amazing sports events near you</p>
+          <p className={`text-lg ${sub}`}>Find, discover, and join amazing events near you</p>
         </div>
 
         <div className={`${filterSurface} backdrop-blur-lg rounded-2xl p-6 mb-8`}>
