@@ -169,7 +169,22 @@ async def get_league_table(league_id: str, season: Optional[str] = None) -> List
         params["s"] = season
     data = await _get_json('lookuptable.php', params=params, ttl=TTL_SHORT)
     table = data.get('table') if isinstance(data, dict) else None
-    return table or []
+    if table:
+        return table
+    # Fallback: try previous season for leagues that might not have rollover yet (NBA style 2024-2025 -> 2023-2024)
+    if not season:
+        # attempt to derive a recent two-year span season format
+        from datetime import datetime
+        yr = datetime.utcnow().year
+        # Try current-season style "{yr}-{yr+1}" and previous one
+        guesses = [f"{yr-1}-{yr}", f"{yr-2}-{yr-1}"]
+        for guess in guesses:
+            params2 = {"l": league_id, "s": guess}
+            data2 = await _get_json('lookuptable.php', params=params2, ttl=TTL_SHORT)
+            table2 = data2.get('table') if isinstance(data2, dict) else None
+            if table2:
+                return table2
+    return []
 
 def _sport_to_league_id(sport_key: str) -> Optional[str]:
     alias = SPORT_ALIAS.get(sport_key.lower())
