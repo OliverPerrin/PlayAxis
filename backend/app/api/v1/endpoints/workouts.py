@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
 from datetime import datetime
 
 from app.schemas.athlete import WorkoutCreate, WorkoutRead, WorkoutList
 from app.db.session import SessionLocal
 from app.crud.workout import create_workout, get_workout, list_workouts, delete_workout
 from app.models.user import User
-from app.api.v1.endpoints.auth import get_current_user  # assuming existing dependency
+from app.core.dependencies import get_current_user
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
 
