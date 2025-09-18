@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.workout import Workout
+from app.models.standings_cache import StandingsCache
 
 def create_workout(db: Session, user_id: int, data: dict) -> Workout:
     obj = Workout(user_id=user_id, **data)
@@ -29,3 +30,20 @@ def delete_workout(db: Session, user_id: int, workout_id: int) -> bool:
     db.delete(obj)
     db.commit()
     return True
+
+# ---- Standings Cache Helpers ---- #
+
+def get_standings_cache(db: Session, sport: str) -> Optional[StandingsCache]:
+    return db.query(StandingsCache).filter(StandingsCache.sport == sport.lower()).first()
+
+def upsert_standings_cache(db: Session, sport: str, data: dict) -> StandingsCache:
+    skey = sport.lower()
+    obj = db.query(StandingsCache).filter(StandingsCache.sport == skey).first()
+    if obj:
+        obj.data = data
+    else:
+        obj = StandingsCache(sport=skey, data=data)
+        db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj

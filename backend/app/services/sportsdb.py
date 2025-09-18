@@ -180,6 +180,15 @@ def _sport_to_league_id(sport_key: str) -> Optional[str]:
         return None
     return LEAGUE_IDS.get(league_name.upper())
 
+import os
+from datetime import datetime, timezone, timedelta
+from sqlalchemy.orm import Session
+from app.db.session import SessionLocal
+from app.crud.workout import get_standings_cache, upsert_standings_cache
+
+STANDINGS_CACHE_TTL_MIN = int(os.getenv('STANDINGS_CACHE_TTL_MIN', '30'))
+FORCE_REFRESH_STANDINGS = os.getenv('FORCE_REFRESH_STANDINGS') == '1'
+
 async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
     """Return a multi-table standings structure differing by sport.
 
@@ -194,6 +203,21 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
     }
     """
     await _ensure_dynamic_aliases()
+    # DB cache check
+    db: Session | None = None
+    cached_obj = None
+    try:
+        db = SessionLocal()
+        cached_obj = get_standings_cache(db, sport_key)
+    except Exception:  # noqa: BLE001
+        db = None
+    now = datetime.now(timezone.utc)
+    if cached_obj and not FORCE_REFRESH_STANDINGS:
+        refreshed = cached_obj.refreshed_at if cached_obj.refreshed_at else now
+        if (now - refreshed) < timedelta(minutes=STANDINGS_CACHE_TTL_MIN):
+            data = cached_obj.data
+            if isinstance(data, dict) and data.get('tables') is not None:
+                return data
     skey = sport_key.lower()
 
     # Special handling for motorsport (F1) placeholder sample (real integration would call dedicated endpoints)
@@ -334,12 +358,18 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                 'rows': _race_rows(),
             },
         ]
-        return {'sport': sport_key, 'league_id': None, 'tables': tables}
+        result = {'sport': sport_key, 'league_id': None, 'tables': tables}
+        if db:
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:  # noqa: BLE001
+                pass
+        return result
 
     # Skiing placeholder – disciplines & times (no direct TheSportsDB aggregate; synthetic structure)
     if skey in {"ski", "skiing"}:
         ski_rows = await get_skiing_standings()
-        return {
+        result = {
             "sport": sport_key,
             "league_id": None,
             "tables": [
@@ -351,48 +381,82 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                 }
             ],
         }
+        if db:
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
+        return result
 
     if skey in {"tennis"}:
         atp = await get_tennis_rankings(limit=50)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "tennis_atp", "name": "ATP Singles Rankings (Top 50)", "columns": ["Rank", "Player", "Country", "Points"], "rows": atp}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     if skey in {"golf"}:
         owgr = await get_golf_rankings(limit=50)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "golf_owgr", "name": "Official World Golf Ranking (Top 50)", "columns": ["Rank", "Player", "Country", "Points"], "rows": owgr}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     if skey in {"cricket"}:
         odi = await get_cricket_rankings(limit=30)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "cricket_odi", "name": "ICC Men's ODI Team Rankings", "columns": ["Rank", "Team", "Matches", "Rating"], "rows": odi}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     if skey in {"rugby"}:
         rw = await get_rugby_rankings(limit=30)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "rugby_world", "name": "World Rugby Rankings", "columns": ["Rank", "Team", "Points"], "rows": rw}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     if skey in {"cycling"}:
         uci = await get_cycling_rankings(limit=50)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "cycling_uci", "name": "UCI World Ranking Riders", "columns": ["Rank", "Rider", "Team", "Points"], "rows": uci}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     if skey in {"running", "athletics"}:
         recs = await get_running_records(limit=20)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "running_records", "name": "Selected Track World Records (Men)", "columns": ["Event", "Performance", "Athlete", "Nation"], "rows": recs}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     if skey in {"esports", "e-sports"}:
         ers = await get_esports_rankings(limit=25)
-        return {"sport": sport_key, "league_id": None, "tables": [
+        result = {"sport": sport_key, "league_id": None, "tables": [
             {"kind": "esports_earnings", "name": "Highest Earning Esports Players", "columns": ["Rank", "Player", "Country", "Earnings"], "rows": ers}
         ]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     # Soccer (league style) – attempt league table
     league_id = _sport_to_league_id(sport_key)
@@ -446,10 +510,18 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
             "columns": ["Rank", "Team", "Points"],
             "rows": fifa_rows,
         }
-        return {"sport": sport_key, "league_id": league_id, "tables": [league_table, players_table, world_rankings_table]}
+        result = {"sport": sport_key, "league_id": league_id, "tables": [league_table, players_table, world_rankings_table]}
+        if db:
+            try: upsert_standings_cache(db, sport_key, result)
+            except Exception: pass
+        return result
 
     # Fallback empty response for unsupported mapping
-    return {"sport": sport_key, "league_id": None, "tables": []}
+    result = {"sport": sport_key, "league_id": None, "tables": []}
+    if db:
+        try: upsert_standings_cache(db, sport_key, result)
+        except Exception: pass
+    return result
 
 async def unified_events(sport_key: str) -> Dict[str, Any]:
     """Return combined snapshot: upcoming + recent for a mapped league if available."""
