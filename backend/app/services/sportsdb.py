@@ -527,7 +527,10 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                 logger.warning("Fallback wiki standings failed sport=%s err=%s", skey_low, e)
         league_table = {
             "kind": "league",
-            "name": "League Standings" if standings_rows and 'Played' in (standings_rows[0].keys()) else "Standings",
+            "name": (
+                "League Standings" if standings_rows and 'Played' in (standings_rows[0].keys()) else
+                "Standings (Fallback)" if standings_rows else "Standings"
+            ),
             "columns": (
                 ["Rank", "Team", "Played", "Win", "Draw", "Loss", "GF", "GA", "GD", "Pts"]
                 if standings_rows and 'Played' in (standings_rows[0].keys()) else list(standings_rows[0].keys()) if standings_rows else ["Rank", "Team", "Pts"]
@@ -572,6 +575,72 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
 async def unified_events(sport_key: str) -> Dict[str, Any]:
     """Return combined snapshot: upcoming + recent for a mapped league if available."""
     skey = sport_key.lower()
+
+    # Special handling for F1 events using Ergast (avoid mixed league aggregation)
+    if skey in {"f1", "formula1", "formula-1"}:
+        async def _ergast(path: str) -> Optional[Dict[str, Any]]:
+            url = f"http://ergast.com/api/f1/{path}"
+            cache_key = f"ergast:{path}"
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                return cached
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    r = await client.get(url)
+                    if r.status_code != 200:
+                        await cache.set(cache_key, None, 120)
+                        return None
+                    data = r.json()
+                    await cache.set(cache_key, data, 600)
+                    return data
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Ergast schedule fail err=%s", e)
+                await cache.set(cache_key, None, 120)
+                return None
+        sched = await _ergast('current.json')
+        races = []
+        try:
+            races = sched['MRData']['RaceTable']['Races'] if sched else []
+        except Exception:  # noqa: BLE001
+            races = []
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        upcoming = []
+        recent = []
+        for r in races:
+            date_str = r.get('date')
+            time_str = r.get('time') or '00:00:00Z'
+            try:
+                dt = datetime.fromisoformat((date_str + 'T' + time_str.replace('Z','+00:00')))  # naive parse
+            except Exception:  # noqa: BLE001
+                dt = None
+            circuit = (r.get('Circuit') or {}).get('circuitName')
+            country = (r.get('Circuit') or {}).get('Location', {}).get('country')
+            base_event = {
+                'id': r.get('raceName'),
+                'sport': 'Motorsport',
+                'league': 'F1',
+                'season': r.get('season'),
+                'date': date_str,
+                'time': time_str if time_str != '00:00:00Z' else None,
+                'home_team': r.get('raceName'),
+                'away_team': country,
+                'venue': circuit,
+                'city': (r.get('Circuit') or {}).get('Location', {}).get('locality'),
+                'country': country,
+                'status': None,
+            }
+            if dt and dt >= now:
+                upcoming.append(base_event)
+            else:
+                recent.append(base_event)
+        # Sort upcoming by date ascending, recent by date descending
+        def _sort_key(ev):
+            return (ev.get('date') or '', ev.get('time') or '')
+        upcoming.sort(key=_sort_key)
+        recent.sort(key=_sort_key, reverse=True)
+        return {"sport": sport_key, "league_id": None, "upcoming": upcoming, "recent": recent}
+
     alias = SPORT_ALIAS.get(skey)
     league_name = None
     league_id = None
@@ -592,22 +661,8 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
             "upcoming": upcoming,
             "recent": recent,
         }
-
-    # Fallback: if the sport is generic (e.g., 'basketball') but we added alias mapping, above path handles it.
-    # Otherwise try all major known leagues and aggregate (limit output size client side if needed).
-    aggregated = []
-    aggregated_recent = []
-    for lid in LEAGUE_IDS.values():
-        try:
-            nxt, prev = await asyncio.gather(
-                get_next_events_for_league(lid),
-                get_previous_events_for_league(lid),
-            )
-            aggregated.extend(nxt or [])
-            aggregated_recent.extend(prev or [])
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Events fetch fail league=%s err=%s", lid, e)
-    return {"sport": sport_key, "league_id": None, "upcoming": aggregated, "recent": aggregated_recent}
+    # Fallback: sport without mapped league/events
+    return {"sport": sport_key, "league_id": None, "upcoming": [], "recent": []}
 
 __all__ = [
     'list_all_sports', 'get_next_events_for_league', 'get_previous_events_for_league',
