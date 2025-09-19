@@ -376,6 +376,260 @@ async def get_esports_rankings(limit: int = 25) -> List[Dict[str, Any]]:
     return await _cached_table_rows(f"esports_highest:{limit}", url, parse)
 
 
+# ------- US Major Leagues Fallback (NBA / NFL / MLB / NHL) ------- #
+
+async def get_nba_standings(limit: int = 60) -> List[Dict[str, Any]]:
+    """Scrape NBA standings (combined conferences) from Wikipedia current season page.
+
+    Columns returned: Rank, Team, W, L, Pct
+    We merge Eastern and Western conference tables appending one after another.
+    This is a lightweight heuristic and may need adjustments if the page structure changes.
+    """
+    # Season page (update yearly). We attempt to guess current/previous season pages.
+    import datetime
+    year = datetime.datetime.utcnow().year
+    # Most NBA season pages use pattern: 2024–25_NBA_season (en dash) or 2024–25_NBA_season
+    # We'll try current and previous season identifiers.
+    candidates = [
+        f"{year}\u2013{str(year+1)[-2:]}_NBA_season",
+        f"{year-1}\u2013{str(year)[-2:]}_NBA_season",
+    ]
+    base = "https://en.wikipedia.org/wiki/"
+    for slug in candidates:
+        url = base + slug
+        cache_key = f"nba_standings:{slug}:{limit}".lower()
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            if cached:
+                return cached
+            continue
+        html = await _fetch(url, ttl=WIKI_TTL)
+        if not html:
+            await cache.set(cache_key, [], 1800)
+            continue
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            tables = soup.find_all('table', {'class': re.compile(r'wikitable')})
+            rows_out: List[Dict[str, Any]] = []
+            for tbl in tables:
+                header_cells = [h.get_text(strip=True).lower() for h in tbl.find_all('th')[:8]]
+                # Look for conference tables containing 'team' and 'w' or 'win' columns
+                if not (any('team' in h for h in header_cells) and any(h.startswith('w') for h in header_cells)):
+                    continue
+                for tr in tbl.find_all('tr')[1:]:
+                    tds = tr.find_all('td')
+                    if len(tds) < 5:
+                        continue
+                    rank_txt = tds[0].get_text(strip=True)
+                    team = tds[1].get_text(strip=True)
+                    wl = [c.get_text(strip=True) for c in tds[2:5]]  # W, L, Pct maybe
+                    try:
+                        rank_val = int(re.sub(r'[^0-9]', '', rank_txt) or '0')
+                    except ValueError:
+                        rank_val = None
+                    w = wl[0] if len(wl) > 0 else None
+                    l = wl[1] if len(wl) > 1 else None
+                    pct = wl[2] if len(wl) > 2 else None
+                    if team and rank_val is not None:
+                        rows_out.append({'Rank': rank_val, 'Team': team, 'W': w, 'L': l, 'Pct': pct})
+                    if len(rows_out) >= limit:
+                        break
+                if len(rows_out) >= limit:
+                    break
+            await cache.set(cache_key, rows_out, WIKI_TTL)
+            if rows_out:
+                return rows_out
+        except Exception as e:  # noqa: BLE001
+            logger.warning("NBA standings parse fail url=%s err=%s", url, e)
+            await cache.set(cache_key, [], 1800)
+    return []
+
+async def get_nfl_standings(limit: int = 40) -> List[Dict[str, Any]]:
+    """Scrape NFL standings (divisional) from Wikipedia current season page.
+
+    Columns: Division, Team, W, L, T, Pct
+    """
+    import datetime
+    year = datetime.datetime.utcnow().year
+    candidates = [
+        f"{year}_NFL_season",
+        f"{year-1}_NFL_season",
+    ]
+    base = "https://en.wikipedia.org/wiki/"
+    for slug in candidates:
+        url = base + slug
+        cache_key = f"nfl_standings:{slug}:{limit}".lower()
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            if cached:
+                return cached
+            continue
+        html = await _fetch(url, ttl=WIKI_TTL)
+        if not html:
+            await cache.set(cache_key, [], 1800)
+            continue
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            tables = soup.find_all('table', {'class': re.compile(r'wikitable')})
+            rows_out: List[Dict[str, Any]] = []
+            current_division = None
+            for tbl in tables:
+                # Identify tables that look like standings (Win column etc.)
+                headers = [h.get_text(strip=True).lower() for h in tbl.find_all('th')[:10]]
+                if not (any(h.startswith('w') for h in headers) and any('team' in h or 'club' in h for h in headers)):
+                    continue
+                for tr in tbl.find_all('tr')[1:]:
+                    th = tr.find('th')
+                    if th and 'division' in th.get_text(strip=True).lower():
+                        current_division = th.get_text(strip=True)
+                        continue
+                    tds = tr.find_all('td')
+                    if len(tds) < 6:
+                        continue
+                    team = tds[0].get_text(strip=True)
+                    w = tds[1].get_text(strip=True)
+                    l = tds[2].get_text(strip=True)
+                    t_val = tds[3].get_text(strip=True)
+                    pct = tds[4].get_text(strip=True)
+                    if not team or team.lower() == 'team':
+                        continue
+                    rows_out.append({'Division': current_division, 'Team': team, 'W': w, 'L': l, 'T': t_val, 'Pct': pct})
+                    if len(rows_out) >= limit:
+                        break
+                if len(rows_out) >= limit:
+                    break
+            await cache.set(cache_key, rows_out, WIKI_TTL)
+            if rows_out:
+                return rows_out
+        except Exception as e:  # noqa: BLE001
+            logger.warning("NFL standings parse fail url=%s err=%s", url, e)
+            await cache.set(cache_key, [], 1800)
+    return []
+
+async def get_mlb_standings(limit: int = 60) -> List[Dict[str, Any]]:
+    """Scrape MLB standings from current season Wikipedia page.
+
+    Columns: League/Division, Team, W, L, Pct
+    """
+    import datetime
+    year = datetime.datetime.utcnow().year
+    candidates = [
+        f"{year}_Major_League_Baseball_season",
+        f"{year-1}_Major_League_Baseball_season",
+    ]
+    base = "https://en.wikipedia.org/wiki/"
+    for slug in candidates:
+        url = base + slug
+        cache_key = f"mlb_standings:{slug}:{limit}".lower()
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            if cached:
+                return cached
+            continue
+        html = await _fetch(url, ttl=WIKI_TTL)
+        if not html:
+            await cache.set(cache_key, [], 1800)
+            continue
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            tables = soup.find_all('table', {'class': re.compile(r'wikitable')})
+            rows_out: List[Dict[str, Any]] = []
+            current_group = None
+            for tbl in tables:
+                headers = [h.get_text(strip=True).lower() for h in tbl.find_all('th')[:10]]
+                if not (any('w' == h or h.startswith('w') for h in headers) and any('team' in h or 'club' in h for h in headers)):
+                    continue
+                for tr in tbl.find_all('tr')[1:]:
+                    th = tr.find('th')
+                    if th and ('division' in th.get_text(strip=True).lower() or 'league' in th.get_text(strip=True).lower()):
+                        current_group = th.get_text(strip=True)
+                        continue
+                    tds = tr.find_all('td')
+                    if len(tds) < 5:
+                        continue
+                    team = tds[0].get_text(strip=True)
+                    w = tds[1].get_text(strip=True)
+                    l = tds[2].get_text(strip=True)
+                    pct = tds[3].get_text(strip=True)
+                    if not team or team.lower() == 'team':
+                        continue
+                    rows_out.append({'Group': current_group, 'Team': team, 'W': w, 'L': l, 'Pct': pct})
+                    if len(rows_out) >= limit:
+                        break
+                if len(rows_out) >= limit:
+                    break
+            await cache.set(cache_key, rows_out, WIKI_TTL)
+            if rows_out:
+                return rows_out
+        except Exception as e:  # noqa: BLE001
+            logger.warning("MLB standings parse fail url=%s err=%s", url, e)
+            await cache.set(cache_key, [], 1800)
+    return []
+
+async def get_nhl_standings(limit: int = 50) -> List[Dict[str, Any]]:
+    """Scrape NHL standings from current season Wikipedia page.
+
+    Columns: Division, Team, GP, W, L, OTL, Pts
+    """
+    import datetime
+    year = datetime.datetime.utcnow().year
+    # NHL season spans; page pattern similar to NBA
+    candidates = [
+        f"{year}\u2013{str(year+1)[-2:]}_NHL_season",
+        f"{year-1}\u2013{str(year)[-2:]}_NHL_season",
+    ]
+    base = "https://en.wikipedia.org/wiki/"
+    for slug in candidates:
+        url = base + slug
+        cache_key = f"nhl_standings:{slug}:{limit}".lower()
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            if cached:
+                return cached
+            continue
+        html = await _fetch(url, ttl=WIKI_TTL)
+        if not html:
+            await cache.set(cache_key, [], 1800)
+            continue
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            tables = soup.find_all('table', {'class': re.compile(r'wikitable')})
+            rows_out: List[Dict[str, Any]] = []
+            current_div = None
+            for tbl in tables:
+                headers = [h.get_text(strip=True).lower() for h in tbl.find_all('th')[:10]]
+                if not (any('team' in h for h in headers) and any('pts' in h or 'points' in h for h in headers)):
+                    continue
+                for tr in tbl.find_all('tr')[1:]:
+                    th = tr.find('th')
+                    if th and ('division' in th.get_text(strip=True).lower()):
+                        current_div = th.get_text(strip=True)
+                        continue
+                    tds = tr.find_all('td')
+                    if len(tds) < 8:
+                        continue
+                    team = tds[0].get_text(strip=True)
+                    gp = tds[1].get_text(strip=True)
+                    w = tds[2].get_text(strip=True)
+                    l = tds[3].get_text(strip=True)
+                    otl = tds[4].get_text(strip=True)
+                    pts = tds[5].get_text(strip=True)
+                    if not team or team.lower() == 'team':
+                        continue
+                    rows_out.append({'Division': current_div, 'Team': team, 'GP': gp, 'W': w, 'L': l, 'OTL': otl, 'Pts': pts})
+                    if len(rows_out) >= limit:
+                        break
+                if len(rows_out) >= limit:
+                    break
+            await cache.set(cache_key, rows_out, WIKI_TTL)
+            if rows_out:
+                return rows_out
+        except Exception as e:  # noqa: BLE001
+            logger.warning("NHL standings parse fail url=%s err=%s", url, e)
+            await cache.set(cache_key, [], 1800)
+    return []
+
+
 # ------- Athlete extraction helpers for Compare Page (skiing, running, cycling) ------- #
 
 async def extract_skiing_athletes(limit: int = 50) -> List[Dict[str, Any]]:

@@ -15,6 +15,10 @@ from app.services.external_standings import (
     get_cycling_rankings,
     get_running_records,
     get_esports_rankings,
+    get_nba_standings,
+    get_nfl_standings,
+    get_mlb_standings,
+    get_nhl_standings,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,17 +33,19 @@ TTL_LONG = 3600  # 1 hour for static lists
 # by list_all_sports() so unknown sports still resolve to a display name.
 SPORT_ALIAS: Dict[str, Tuple[str, Optional[str]]] = {
     "nfl": ("American Football", "NFL"),
+    "american_football": ("American Football", "NFL"),
+    "football": ("American Football", "NFL"),
     "nba": ("Basketball", "NBA"),
+    "basketball": ("Basketball", "NBA"),
     "mlb": ("Baseball", "MLB"),
+    "baseball": ("Baseball", "MLB"),
     "nhl": ("Ice Hockey", "NHL"),
+    "ice_hockey": ("Ice Hockey", "NHL"),
+    "hockey": ("Ice Hockey", "NHL"),
     "epl": ("Soccer", "English Premier League"),
     # Map generic 'soccer' to EPL so users selecting 'soccer' get a league table
     "soccer": ("Soccer", "EPL"),
     # Generic sport keys (as returned by API) mapped to major leagues
-    "american_football": ("American Football", "NFL"),
-    "basketball": ("Basketball", "NBA"),
-    "baseball": ("Baseball", "MLB"),
-    "ice_hockey": ("Ice Hockey", "NHL"),
     # Additional common aliases
     "f1": ("Motorsport", None),
     "formula1": ("Motorsport", None),
@@ -497,10 +503,35 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                 })
         except Exception as e:  # noqa: BLE001
             logger.warning("League standings fetch fail league=%s err=%s", league_id, e)
+        # If no standings rows and sport is a US major league, attempt fallback wiki scrapers
+        if not standings_rows:
+            skey_low = skey.lower()
+            try:
+                if skey_low in {"nba", "basketball"}:
+                    nba_rows = await get_nba_standings()
+                    if nba_rows:
+                        standings_rows = nba_rows
+                elif skey_low in {"nfl", "american_football"}:
+                    nfl_rows = await get_nfl_standings()
+                    if nfl_rows:
+                        standings_rows = nfl_rows
+                elif skey_low in {"mlb", "baseball"}:
+                    mlb_rows = await get_mlb_standings()
+                    if mlb_rows:
+                        standings_rows = mlb_rows
+                elif skey_low in {"nhl", "ice_hockey", "hockey"}:
+                    nhl_rows = await get_nhl_standings()
+                    if nhl_rows:
+                        standings_rows = nhl_rows
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Fallback wiki standings failed sport=%s err=%s", skey_low, e)
         league_table = {
             "kind": "league",
-            "name": "League Standings",
-            "columns": ["Rank", "Team", "Played", "Win", "Draw", "Loss", "GF", "GA", "GD", "Pts"],
+            "name": "League Standings" if standings_rows and 'Played' in (standings_rows[0].keys()) else "Standings",
+            "columns": (
+                ["Rank", "Team", "Played", "Win", "Draw", "Loss", "GF", "GA", "GD", "Pts"]
+                if standings_rows and 'Played' in (standings_rows[0].keys()) else list(standings_rows[0].keys()) if standings_rows else ["Rank", "Team", "Pts"]
+            ),
             "rows": standings_rows,
         }
         try:
@@ -540,26 +571,43 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
 
 async def unified_events(sport_key: str) -> Dict[str, Any]:
     """Return combined snapshot: upcoming + recent for a mapped league if available."""
-    alias = SPORT_ALIAS.get(sport_key.lower())
+    skey = sport_key.lower()
+    alias = SPORT_ALIAS.get(skey)
     league_name = None
     league_id = None
     if alias:
         _, league_name = alias
     if league_name and league_name.upper() in LEAGUE_IDS:
         league_id = LEAGUE_IDS[league_name.upper()]
-    if not league_id:
-        # fallback: list sports or empty
-        return {"sport": sport_key, "upcoming": [], "recent": []}
-    upcoming, recent = await asyncio.gather(
-        get_next_events_for_league(league_id),
-        get_previous_events_for_league(league_id),
-    )
-    return {
-        "sport": sport_key,
-        "league_id": league_id,
-        "upcoming": upcoming,
-        "recent": recent,
-    }
+
+    # If direct mapping found, return its events
+    if league_id:
+        upcoming, recent = await asyncio.gather(
+            get_next_events_for_league(league_id),
+            get_previous_events_for_league(league_id),
+        )
+        return {
+            "sport": sport_key,
+            "league_id": league_id,
+            "upcoming": upcoming,
+            "recent": recent,
+        }
+
+    # Fallback: if the sport is generic (e.g., 'basketball') but we added alias mapping, above path handles it.
+    # Otherwise try all major known leagues and aggregate (limit output size client side if needed).
+    aggregated = []
+    aggregated_recent = []
+    for lid in LEAGUE_IDS.values():
+        try:
+            nxt, prev = await asyncio.gather(
+                get_next_events_for_league(lid),
+                get_previous_events_for_league(lid),
+            )
+            aggregated.extend(nxt or [])
+            aggregated_recent.extend(prev or [])
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Events fetch fail league=%s err=%s", lid, e)
+    return {"sport": sport_key, "league_id": None, "upcoming": aggregated, "recent": aggregated_recent}
 
 __all__ = [
     'list_all_sports', 'get_next_events_for_league', 'get_previous_events_for_league',
