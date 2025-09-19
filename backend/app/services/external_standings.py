@@ -351,29 +351,51 @@ async def get_running_records(limit: int = 20) -> List[Dict[str, Any]]:
 
 
 async def get_esports_rankings(limit: int = 25) -> List[Dict[str, Any]]:
-    """Scrape highest-earning esports players (cumulative) from Wikipedia."""
-    url = "https://en.wikipedia.org/wiki/List_of_highest-paid_esports_players"
-    def parse(html: str):
-        soup = BeautifulSoup(html, 'html.parser')
-        table = soup.find('table', {'class': 'wikitable'})
-        rows_out = []
-        if table:
-            for tr in table.find_all('tr')[1:]:
-                tds = tr.find_all('td')
-                if len(tds) < 4:
-                    continue
-                try:
-                    rank = int(tds[0].get_text(strip=True))
-                except ValueError:
-                    continue
-                player = tds[1].get_text(strip=True)
-                country = tds[2].get_text(strip=True)
-                earnings = tds[3].get_text(strip=True)
-                rows_out.append({'Rank': rank, 'Player': player, 'Country': country, 'Earnings': earnings})
-                if len(rows_out) >= limit:
-                    break
-        return rows_out
-    return await _cached_table_rows(f"esports_highest:{limit}", url, parse)
+    """Scrape highest-earning esports players (cumulative) from Wikipedia.
+
+    Some mirrors/pages occasionally move; attempt multiple candidate URLs.
+    """
+    candidates = [
+        "https://en.wikipedia.org/wiki/List_of_highest-paid_esports_players",
+        "https://en.wikipedia.org/wiki/List_of_highest_paid_esports_players",  # alt without hyphen
+    ]
+    for url in candidates:
+        cache_key = f"esports_highest:{limit}:{url.split('/')[-1].lower()}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            if cached:  # non-empty success
+                return cached
+            continue
+        html = await _fetch(url, ttl=WIKI_TTL)
+        if not html:
+            await cache.set(cache_key, [], 1800)
+            continue
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            table = soup.find('table', {'class': 'wikitable'})
+            rows_out = []
+            if table:
+                for tr in table.find_all('tr')[1:]:
+                    tds = tr.find_all('td')
+                    if len(tds) < 4:
+                        continue
+                    try:
+                        rank = int(tds[0].get_text(strip=True))
+                    except ValueError:
+                        continue
+                    player = tds[1].get_text(strip=True)
+                    country = tds[2].get_text(strip=True)
+                    earnings = tds[3].get_text(strip=True)
+                    rows_out.append({'Rank': rank, 'Player': player, 'Country': country, 'Earnings': earnings})
+                    if len(rows_out) >= limit:
+                        break
+            await cache.set(cache_key, rows_out, WIKI_TTL)
+            if rows_out:
+                return rows_out
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Esports rankings parse fail url=%s err=%s", url, e)
+            await cache.set(cache_key, [], 1800)
+    return []
 
 
 # ------- US Major Leagues Fallback (NBA / NFL / MLB / NHL) ------- #

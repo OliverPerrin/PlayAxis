@@ -670,34 +670,48 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
             get_previous_events_for_league(league_id),
         )
         # Fallback enrichment: if very few events (e.g., off-season), try season schedule and derive recent/upcoming around today
-        if len(upcoming) + len(recent) < 2:
+        if len(upcoming) < 5 or len(recent) < 5:
             season_events = await get_all_events_for_league_season(league_id)
             if season_events:
                 from datetime import datetime, timezone
                 now = datetime.now(timezone.utc)
-                # Partition relative to now; naive parse using date only
-                upcoming = []
-                recent = []
+                upcoming_all = []
+                recent_all = []
                 for ev in season_events:
                     d = ev.get('date')
                     if not d:
                         continue
+                    dt = None
                     try:
                         dt = datetime.fromisoformat(d)
                     except Exception:  # noqa: BLE001
                         try:
-                            dt = datetime.strptime(d, '%Y-%m-%d')
+                            from datetime import datetime as _dt
+                            dt = _dt.strptime(d, '%Y-%m-%d')
                         except Exception:  # noqa: BLE001
-                            dt = None
+                            pass
                     if not dt:
                         continue
                     if dt >= now.replace(tzinfo=None):
-                        upcoming.append(ev)
+                        upcoming_all.append(ev)
                     else:
-                        recent.append(ev)
-                # Sort for consistency
-                upcoming.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''))
-                recent.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''), reverse=True)
+                        recent_all.append(ev)
+                upcoming_all.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''))
+                recent_all.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''), reverse=True)
+                # Merge with existing to ensure near-term events appear first
+                def _dedupe(existing, extra):
+                    seen = {e.get('id') for e in existing if e.get('id')}
+                    out = existing[:]
+                    for ev in extra:
+                        if ev.get('id') and ev.get('id') in seen:
+                            continue
+                        out.append(ev)
+                    return out
+                upcoming = _dedupe(upcoming, upcoming_all)
+                recent = _dedupe(recent, recent_all)
+        # Limit for payload size but ensure depth
+        upcoming = upcoming[:20]
+        recent = recent[:20]
         return {
             "sport": sport_key,
             "league_id": league_id,
