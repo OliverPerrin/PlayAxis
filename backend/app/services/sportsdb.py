@@ -149,6 +149,20 @@ async def get_previous_events_for_league(league_id: str) -> List[Dict[str, Any]]
     events = data.get('events') if isinstance(data, dict) else None
     return [_norm_event(e) for e in events or []]
 
+async def get_all_events_for_league_season(league_id: str, season: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Fetch full season schedule as fallback when next/past endpoints return too few events.
+
+    Endpoint: eventsseason.php?id=LEAGUE_ID&s=SEASON  (season optional—API returns latest if omitted)
+    """
+    params = {"id": league_id}
+    if season:
+        params["s"] = season
+    data = await _get_json('eventsseason.php', params=params, ttl=TTL_SHORT)
+    events = data.get('events') if isinstance(data, dict) else None
+    if not events:
+        return []
+    return [_norm_event(e) for e in events]
+
 async def get_team_next(team_id: str) -> List[Dict[str, Any]]:
     data = await _get_json('eventsnext.php', params={"id": team_id}, ttl=TTL_SHORT)
     events = data.get('events') if isinstance(data, dict) else None
@@ -655,6 +669,35 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
             get_next_events_for_league(league_id),
             get_previous_events_for_league(league_id),
         )
+        # Fallback enrichment: if very few events (e.g., off-season), try season schedule and derive recent/upcoming around today
+        if len(upcoming) + len(recent) < 2:
+            season_events = await get_all_events_for_league_season(league_id)
+            if season_events:
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                # Partition relative to now; naive parse using date only
+                upcoming = []
+                recent = []
+                for ev in season_events:
+                    d = ev.get('date')
+                    if not d:
+                        continue
+                    try:
+                        dt = datetime.fromisoformat(d)
+                    except Exception:  # noqa: BLE001
+                        try:
+                            dt = datetime.strptime(d, '%Y-%m-%d')
+                        except Exception:  # noqa: BLE001
+                            dt = None
+                    if not dt:
+                        continue
+                    if dt >= now.replace(tzinfo=None):
+                        upcoming.append(ev)
+                    else:
+                        recent.append(ev)
+                # Sort for consistency
+                upcoming.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''))
+                recent.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''), reverse=True)
         return {
             "sport": sport_key,
             "league_id": league_id,

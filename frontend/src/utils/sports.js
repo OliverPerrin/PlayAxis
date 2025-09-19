@@ -2,6 +2,10 @@
 // Each item: { key, label, icon }
 
 const MANUAL_SPORTS = [
+  { key: 'nfl', label: 'NFL', icon: '🏈' },
+  { key: 'nba', label: 'NBA', icon: '🏀' },
+  { key: 'mlb', label: 'MLB', icon: '⚾' },
+  { key: 'nhl', label: 'NHL', icon: '🏒' },
   { key: 'f1', label: 'F1', icon: '🏎️' },
   { key: 'skiing', label: 'Skiing', icon: '🎿' },
   { key: 'tennis', label: 'Tennis', icon: '🎾' },
