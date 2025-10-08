@@ -1,17 +1,8 @@
-# PlayAxis: Full-Stack Multi-sport & Multi-event Web App
+# PlayAxis: Multi-Sports and Events Web App
 
-Discover real‑world events, follow sports schedules, check weather context, and browse live esports streams — all in one place. PlayAxis is a React + FastAPI application that aggregates multiple public APIs and presents them through a clean, responsive UI.
+An event & live content aggregation platform spanning traditional sports, endurance activities, and esports. The backend normalizes external sources (live streams, events, weather, odds context) into a unified API consumed by a React frontend. OAuth (Eventbrite) lets users enrich personal discovery with their own authorized event data.
 
-- Frontend (Netlify): https://playaxis.netlify.app
-- Backend (Koyeb): https://raw-minne-multisportsandevents-7f82c207.koyeb.app/api/v1
-
-> APIs used
-> - Google Events via SerpAPI (primary) and ScraperAPI (HTML fallback) in parallel
-> - TheSportsDB for sports leagues, teams, snapshots, and standings
-> - Open‑Meteo for current and hourly weather
-> - Twitch Helix for live streams (game/interest discovery)
-
----
+> Status: Core aggregation (Eventbrite, Twitch, Sportsbook via RapidAPI, Weather via Open‑Meteo) implemented. Eventbrite OAuth flow scaffolded (authorize, callback, exchange, refresh). Recommendation & advanced personalization layers are being iteratively expanded.
 
 ## Table of Contents
 - [Highlights](#highlights)
@@ -31,91 +22,86 @@ Discover real‑world events, follow sports schedules, check weather context, an
 ---
 
 ## Highlights
-- Unified event discovery:
-  - Parallel Google Events fetch using [`app.services.google_events.fetch_google_events`](backend/app/services/google_events.py) (SerpAPI) and [`app.services.scraperapi_events.fetch_events_via_scraperapi`](backend/app/services/scraperapi_events.py) (ScraperAPI HTML fallback) with graceful degradation inside [`app.services.events.aggregate_events`](backend/app/services/events.py).
-- Sports data:
-  - League snapshots, upcoming/recent fixtures, and lightweight standings via TheSportsDB in [`app.services.sportsdb`](backend/app/services/sportsdb.py).
-- Live streams:
-  - Twitch Helix integration via [`app.services.twitch.fetch_streams`](backend/app/services/twitch.py).
-- Weather context:
-  - Current and optional hourly forecast via Open‑Meteo using [`app.services.weather.fetch_weather`](backend/app/services/weather.py).
-- Map + calendar views:
-  - Leaflet map (markers with bounding‑box filtering), and a simple calendar view.
-- Rate‑limit aware:
-  - In‑memory async cache smooths third‑party pressure; backoff/cooldown for SerpAPI/ScraperAPI fallbacks.
+* Unified events list from Eventbrite (with graceful fallbacks when search restricted).
+* Live Twitch streams (Helix API) with lightweight token caching.
+* Sports schedule / odds context via RapidAPI Sportsbook endpoint (rate‑limit aware).
+* Weather enrichment (Open‑Meteo) for location‑aware discovery scenarios.
+* In‑memory async TTL cache layer to reduce third‑party API pressure.
+* Eventbrite OAuth (Authorization Code) endpoints included: `/authorize`, `/callback`, `/exchange`, `/refresh`, plus a `/debug` diagnostic.
+* React + Tailwind UI with calendar, stream, and event views (Netlify build w/ API proxy to backend).
 
----
+## Hosted Architecture
+| Layer | Service | Hosting | Notes |
+|-------|---------|---------|-------|
+| Frontend (SPA) | React (Create React App + Tailwind) | Netlify | `netlify.toml` config handles build + SPA routing. `/api/*` proxied to backend. |
+| Backend API | FastAPI | Koyeb (container) | Exposed under `/api/v1`. CORS allows Netlify / local dev origins. |
+| Database | PostgreSQL | (Koyeb add‑on / external managed Postgres) | SQLAlchemy ORM + Alembic migrations. |
+| OAuth Provider | Eventbrite | SaaS | App settings must include backend callback URL. |
 
-## Architecture
+Netlify redirect example (from `netlify.toml`):
 ```
-React SPA ----(HTTPS/JSON)----> FastAPI (Koyeb) ----> SerpAPI (Google Events)
-            (Netlify)                         ----> ScraperAPI (HTML fallback)
-                                              ----> TheSportsDB
-                                              ----> Open‑Meteo
-                                              ----> Twitch Helix
+[[redirects]]
+from = "/api/*"
+to = "https://<koyeb-app-host>.koyeb.app/api/:splat"
+status = 200
+```
+Replace `<koyeb-app-host>` with your deployed backend hostname.
 
-FastAPI layers:
-    /api/v1/* routers -> services/* (integration + normalization) -> core/cache (TTL)
-    schemas/* (Pydantic) -> models/* (SQLAlchemy, optional DB) -> alembic (migrations)
+## Data Sources / APIs
+| Source | Purpose | Access Pattern |
+|--------|---------|---------------|
+| Eventbrite API v3 | Event search & organization events | OAuth user token preferred; falls back to private/public tokens if present. |
+| Twitch Helix | Live streams (game/interest discovery) | App access token (client credentials) cached until near expiry. |
+| RapidAPI Sportsbook (`sportsbook-api.p.rapidapi.com`) | Sports scores / events snapshot | Keyed requests per sport; cached to mitigate 429 / 403. |
+| Open‑Meteo | Weather (current + hourly) | Simple GET, no key required. |
+
+## Architecture Overview
+```
+React SPA ----(HTTPS/JSON)----> FastAPI      ----> Eventbrite (OAuth / Bearer)
+                     (Netlify)            (Koyeb)       ----> Twitch Helix (Bearer)
+                                                                                        ----> RapidAPI Sportsbook (API Key)
+                                                                                        ----> Open-Meteo (No Auth)
+
+FastAPI Layers:
+    /api/v1/* routers  ->  services/ (integration logic) -> cache (in‑memory TTL)
+    models/ + schemas/ -> SQLAlchemy + Pydantic
+    Alembic migrations -> db/versions
 ```
 
-- API router composition: [backend/app/api/v1/api.py](backend/app/api/v1/api.py)
-- CORS + app bootstrap: [backend/app/main.py](backend/app/main.py)
-- Frontend API client (proxy-aware): [frontend/src/api.js](frontend/src/api.js)
-- Netlify proxy to backend: [netlify.toml](netlify.toml)
+Key design points:
+* Service modules isolate third‑party quirks (retry, fallback, normalization).
+* Normalized `Event` schema consolidates external fields.
+* In‑memory cache (simple async) is pluggable—can later swap for Redis.
+* Eventbrite search gracefully downgrades: user token → private token → public token → organization fallback → empty.
 
----
+## Backend Endpoints (Summary)
+Prefix: `/api/v1`
 
-## Key Modules (Backend)
-- Events aggregation (Google Events):
-  - [`app.services.events.aggregate_events`](backend/app/services/events.py)
-  - [`app.services.google_events.fetch_google_events`](backend/app/services/google_events.py)
-  - [`app.services.scraperapi_events.fetch_events_via_scraperapi`](backend/app/services/scraperapi_events.py)
-- Sports (TheSportsDB):
-  - [`app.services.sportsdb.unified_events`](backend/app/services/sportsdb.py)
-  - League/team search and next/previous helpers in the same module.
-- Streams (Twitch):
-  - [`app.services.twitch.fetch_streams`](backend/app/services/twitch.py)
-- Weather:
-  - [`app.services.weather.fetch_weather`](backend/app/services/weather.py)
-- Schemas:
-  - Events response + viewport helper: [`app.schemas.event.EventsResponse`](backend/app/schemas/event.py) and [`app.schemas.event.compute_viewport`](backend/app/schemas/event.py)
-  - Sports entities and standings: [backend/app/schemas/sports.py](backend/app/schemas/sports.py)
-  - Streams: [backend/app/schemas/streams.py](backend/app/schemas/streams.py)
-  - Weather: [backend/app/schemas/weather.py](backend/app/schemas/weather.py)
+| Category | Sample Routes | Notes |
+|----------|---------------|-------|
+| Auth | `/auth/login`, `/auth/register` | JWT (HS256) based. |
+| Events | `/events` | Aggregated (currently Eventbrite + normalization). |
+| Streams | `/streams` | Twitch streams (optionally filter by game). |
+| Sports | `/sports/{sport}` | RapidAPI Sportsbook events; sport mapping in code. |
+| Weather | `/weather?lat=..&lon=..` | Current + optional hourly. |
+| Aggregate | `/aggregate` | Multi-source combination (future expansion). |
+| Leaderboards | `/leaderboards` | Placeholder / evolving feature. |
+| Eventbrite OAuth | `/eventbrite/authorize`, `/eventbrite/callback`, `/eventbrite/exchange`, `/eventbrite/refresh` | OAuth handling. |
+| Eventbrite Debug | `/eventbrite/debug` | Inspect token chain & search status. |
+| Health | `/healthz` | Basic readiness. |
 
----
+## Eventbrite OAuth Flow
+1. User clicks a frontend "Connect Eventbrite" button that hits backend: `GET /api/v1/eventbrite/authorize`.
+2. Redirect to Eventbrite consent page with `response_type=code` & configured `redirect_uri`.
+3. Eventbrite redirects back to backend `/api/v1/eventbrite/callback?code=...`.
+4. Backend exchanges code for access & refresh tokens (`exchange_eventbrite_code`).
+5. Tokens stored on the user model (fields: `eventbrite_access_token`, `eventbrite_refresh_token`).
+6. Subsequent Eventbrite requests prefer user access token (improved scopes) before falling back.
+7. Refresh: `POST /api/v1/eventbrite/refresh` rotates access (and possibly refresh) token.
 
-## API Quick Reference
-Base URL: `/api/v1`
-
-- Events (Google Events aggregate)
-  - GET [`/events`](backend/app/api/v1/endpoints/events.py) → [`app.api.v1.endpoints.events.list_events_slash`](backend/app/api/v1/endpoints/events.py)
-    - Query: `q`, `page`, `limit`, optional bounding box `min_lat/max_lat/min_lon/max_lon`, and optional `user_lat/user_lon`
-    - Returns [`EventsResponse`](backend/app/schemas/event.py) with flags: `serpapi_exhausted`, `scraper_fallback`, `scraper_limited`
-
-- Sports (TheSportsDB)
-  - GET [`/sports`](backend/app/api/v1/endpoints/sports.py) → list all sports
-  - GET [`/sports/{sport}`](backend/app/api/v1/endpoints/sports.py) → unified upcoming/recent via [`app.services.sportsdb.unified_events`](backend/app/services/sportsdb.py)
-  - GET [`/sports/{sport}/standings`](backend/app/api/v1/endpoints/sports.py) → multi‑table standings snapshot
-  - GET [`/sports/teams/search?q=...`](backend/app/api/v1/endpoints/sports.py) → quick team search
-  - GET [`/sports/teams/{team_id}/events`](backend/app/api/v1/endpoints/sports.py) → next events for a team
-
-- Streams (Twitch)
-  - GET [`/streams?game_id=...`](backend/app/api/v1/endpoints/streams.py) → [`app.api.v1.endpoints.streams.get_streams`](backend/app/api/v1/endpoints/streams.py)
-
-- Weather (Open‑Meteo)
-  - GET [`/weather?lat=..&lon=..`](backend/app/api/v1/endpoints/weather.py)
-
-- Aggregate (sample blended feed)
-  - GET [`/aggregate/events`](backend/app/api/v1/endpoints/aggregate.py)
-
-- Health
-  - GET `/healthz`
-
-For a lightweight debug of SerpAPI parsing, see: [backend/app/api/v1/endpoints/google_events_debug.py](backend/app/api/v1/endpoints/google_events_debug.py).
-
----
+Important configuration:
+* The `EVENTBRITE_REDIRECT_URI` must EXACTLY match the value in your Eventbrite app (including scheme + path). Typically: `https://<koyeb-app-host>.koyeb.app/api/v1/eventbrite/callback`.
+* Ensure `EVENTBRITE_CLIENT_ID` and `EVENTBRITE_CLIENT_SECRET` set. Legacy `EVENTBRITE_API_KEY` is accepted as a client id if explicit id missing.
 
 ## Local Development
 
