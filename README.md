@@ -263,4 +263,4 @@ git push origin feature/your-feature
 ---
 
 ## License
-Distributed under the GNU License (see [LICENSE](LICENSE)).
+Distributed under the MIT License (see [LICENSE](LICENSE)).
