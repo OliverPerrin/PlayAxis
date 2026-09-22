@@ -1,70 +1,31 @@
-# Getting Started with Create React App
+# PlayAxis frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React 18, React Router and Leaflet. Run the backend with `python dev.py` from `backend`, then:
 
-## Available Scripts
+```sh
+npm ci
+npm start
+```
 
-In the project directory, you can run:
+The app runs on port 3000 and proxies `/api/v1` to port 8000. `npm run build` emits `build`. Run checks with `CI=true npm test -- --watchAll=false --runInBand`.
 
-### `npm start`
+## Main files
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- `components/layout/navigation.js`: one directory for Play, Follow, Train, Connect and utility links.
+- `components/layout/AppShell.js`: masthead, persistent section navigation, location dialog, keyboard feature finder and footer.
+- `index.css`: sporting-programme typography, cream/dark foundations, coral/violet/amber/cobalt accents, flat panels, light/dark themes and responsive layouts.
+- `api.js`: one API base, request deduplication, timeouts, account handling and cache-generation invalidation.
+- `hooks/useResource.js`: current-query guarding and refreshes that preserve visible data and drafts.
+- `contexts/PreferencesContext.js`: device preferences, saved events/places and followed teams.
+- `components/ActivityTimer.js`: persistent device timer with pause/resume and original start.
+- `components/events/EventMap.js`: Leaflet lifecycle, clustering, resize handling and optional meeting-point selection.
+- `components/LocationSearch.js`: standalone or embedded city lookup without nested forms.
+- `components/ui/FeatureArtwork.js`: original compact activity, gaming and ticket illustrations.
+- `pages`: public event discovery, gaming broadcasts, personal activity and community journeys.
+- `utils/eventDates.js`: destination-timezone date presets and community-session filtering.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+The overview has distinct athletics, gaming and event entry points. Feature search includes common gaming and activity aliases. Local discovery supports event categories, date filters and separate organiser website results. See [design notes](../docs/design.md).
 
-### `npm test`
+Protected journeys preserve query parameters and selected-place state through sign-in. Workout editing preserves untouched source precision. Goals and community records live on the backend. Browser bookmarks, preferences, follows and the unsaved timer remain device-local.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Provider keys never belong in `REACT_APP_*` variables. See `.env.example` for public backend/tile URL overrides and the [root README](../README.md) for server setup, quotas and deployment boundaries.

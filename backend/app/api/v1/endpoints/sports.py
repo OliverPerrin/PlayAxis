@@ -1,75 +1,118 @@
-
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
-from app.services.sportsdb import unified_events, list_all_sports, search_team, get_team_next, get_standings_for_sport
-from app.schemas.sports import (
-    SportsListResponse, UnifiedEventsResponse, PlayersResponse, ComparePlayerRequest,
-    ComparePlayerResponse, CompareMetric, MultiStandingsResponse
-)
+from fastapi import APIRouter, Query, HTTPException
+from app.services.public_data import SPORTS, sports_events, standings, get_json
+from app.core.config import settings
 
 router = APIRouter()
 
-@router.get("/", response_model=SportsListResponse)
-async def get_sports():
-    try:
-        sports = await list_all_sports()
-        return {"sports": sports}
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("")
+@router.get("/")
+async def catalogue():
+    return {"sports": SPORTS}
 
 
-@router.get("/{sport}", response_model=UnifiedEventsResponse)
-async def read_sports_events(sport: str):
-    """Return upcoming and recent events for a given sport key (NFL, NBA, EPL, etc)."""
-    try:
-        data = await unified_events(sport)
-        return data
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/teams/search")
+async def teams(q: str = Query(..., min_length=2, max_length=100)):
+    raw = await get_json(
+        f"https://www.thesportsdb.com/api/v1/json/{settings.THESPORTSDB_API_KEY or '123'}/searchteams.php",
+        {"t": q},
+        ttl=3600,
+    )
+    return {"teams": raw.get("teams") or [], "players": raw.get("teams") or []}
 
 
-@router.get("/{sport}/standings", response_model=MultiStandingsResponse)
-async def sport_standings(sport: str):
-    try:
-        data = await get_standings_for_sport(sport)
-        return data
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
+async def lookup_team(team_id):
+    raw = await get_json(
+        f"https://www.thesportsdb.com/api/v1/json/{settings.THESPORTSDB_API_KEY or '123'}/lookupteam.php",
+        {"id": team_id},
+        ttl=86400,
+    )
+    rows = raw.get("teams") or []
+    if not rows:
+        raise HTTPException(404, "Team not found")
+    return rows[0]
 
 
-@router.get("/teams/search", response_model=PlayersResponse)
-async def search_teams(q: str = Query(..., min_length=2, description="Team name search fragment")):
-    try:
-        teams = await search_team(q)
-        # Reuse PlayersResponse schema structure for simplicity (teams vs players)
-        return {"players": teams}
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/teams/{team_id}")
+async def team_profile(team_id: int):
+    return {"team": await lookup_team(team_id)}
 
 
 @router.get("/teams/{team_id}/events")
-async def team_events(team_id: str):
-    try:
-        upcoming = await get_team_next(team_id)
-        return {"team_id": team_id, "upcoming": upcoming}
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
+async def team_events(team_id: int):
+    import re, unicodedata
+    from app.services.public_data import sportsdb_event
 
+    team = await lookup_team(team_id)
 
-@router.post("/compare", response_model=ComparePlayerResponse)
-async def compare_player(req: ComparePlayerRequest):
-    # Placeholder: in absence of player stats endpoint from TheSportsDB for generic metrics,
-    # synthesize comparison using provided user metrics vs dummy zero baseline.
-    metrics = []
-    for k, v in req.user_metrics.items():
+    def name(value):
+        value = (
+            unicodedata.normalize("NFKD", value)
+            .encode("ascii", "ignore")
+            .decode()
+            .casefold()
+        )
+        return re.sub(r"\W+", "", re.sub(r"\b(fc|afc|cf|the)\b", "", value))
+
+    names = {name(team.get("strTeam", ""))} | {
+        name(t) for t in (team.get("strAlternate") or "").split(",") if t
+    }
+    league = {
+        "4328": "epl",
+        "4387": "nba",
+        "4391": "nfl",
+        "4380": "nhl",
+        "4424": "mlb",
+        "4331": "bundesliga",
+    }.get(team.get("idLeague"))
+    if league:
         try:
-            user_val = float(v)
-        except Exception:  # noqa: BLE001
-            user_val = 0.0
-        metrics.append(CompareMetric(metric=k, player_value=0.0, user_value=user_val, percentile=None))
-    return ComparePlayerResponse(
-        player_id=req.player_id,
-        player_name=None,
-        sport=req.sport,
-        metrics=metrics
+            snapshot = await sports_events(league)
+            rows = [
+                e
+                for e in snapshot["upcoming"]
+                if name(e.get("home_team") or "") in names
+                or name(e.get("away_team") or "") in names
+            ]
+            if rows:
+                return {
+                    "team_id": team_id,
+                    "team": team,
+                    "upcoming": rows,
+                    "source": snapshot["source"],
+                    "coverage": snapshot["coverage"],
+                    "limited": snapshot["limited"],
+                }
+        except HTTPException:
+            pass
+    raw = await get_json(
+        f"https://www.thesportsdb.com/api/v1/json/{settings.THESPORTSDB_API_KEY or '123'}/eventsnext.php",
+        {"id": team_id},
+        ttl=900,
+    )
+    return {
+        "team_id": team_id,
+        "team": team,
+        "upcoming": [sportsdb_event(e) for e in raw.get("events") or []],
+        "source": "TheSportsDB",
+        "coverage": "Limited next-fixture sample.",
+        "limited": True,
+    }
+
+
+@router.get("/{sport}/standings")
+async def league_standings(sport: str):
+    return await standings(sport)
+
+
+@router.get("/{sport}")
+async def league_events(sport: str):
+    return await sports_events(sport)
+
+
+@router.post("/compare")
+async def legacy_comparison():
+    raise HTTPException(
+        410,
+        "Unsupported player estimates have been removed. Compare recorded workouts on the Compare page.",
     )

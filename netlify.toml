@@ -1,9 +1,11 @@
 [build]
-  command = "cd frontend && npm install --no-audit --no-fund && npm run build"
+  command = "cd frontend && npm ci --no-audit --no-fund && npm run build"
   publish = "./frontend/build"
 
 [build.environment]
   GENERATE_SOURCEMAP = "false"
+  NODE_VERSION = "22"
+  REACT_APP_API_URL = ""
 
 ## IMPORTANT: Place API proxy BEFORE SPA fallback so Netlify forwards API calls to Koyeb
 [[redirects]]

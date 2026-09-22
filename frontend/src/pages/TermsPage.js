@@ -1,29 +1,52 @@
-import React, { useContext } from 'react';
-import { ThemeContext } from '../contexts/ThemeContext';
-
+import React from "react";
+import { Link } from "react-router-dom";
+import { PageHeader } from "../components/ui";
 export default function TermsPage() {
-  const { theme } = useContext(ThemeContext);
-  const isDark = theme === 'dark';
-
-  const surface = isDark ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-sm';
-  const heading = isDark ? 'text-white' : 'text-slate-900';
-  const body = isDark ? 'text-slate-300' : 'text-slate-600';
-  const sub = isDark ? 'text-slate-400' : 'text-slate-500';
-
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div className={`rounded-2xl p-6 border ${surface}`}>
-        <h1 className={`text-2xl font-bold mb-3 ${heading}`}>Terms of Use</h1>
-        <p className={`text-sm leading-relaxed ${body}`}>
-          By using PlayAxis you agree to use the platform responsibly, comply with local regulations regarding wagering data, and respect community guidelines. Content and integrations are provided on a best-effort basis without warranty.
+    <>
+      <PageHeader eyebrow="Using PlayAxis" title="A few ground rules" />
+      <article className="panel panel-pad prose">
+        <p>Last updated: 22 September 2026.</p>
+        <h2>The service</h2>
+        <p>
+          PlayAxis helps you explore sporting events and places, follow
+          fixtures, and record personal activities. It is an information and
+          tracking tool. External bookings take place with the organiser.
+          Community sessions are hosted by their named members, who manage their
+          plans and communicate changes.
         </p>
-        <ol className="mt-5 space-y-2 text-xs list-decimal pl-5">
-          <li className={sub}>No automated scraping of internal APIs.</li>
-          <li className={sub}>Don’t abuse rate-limited endpoints.</li>
-          <li className={sub}>Respect other users—harassment results in suspension.</li>
-          <li className={sub}>We may adjust or revoke features for security reasons.</li>
-        </ol>
-      </div>
-    </div>
+        <h2>Check the source</h2>
+        <p>
+          Schedules, results, weather forecasts and map information are supplied
+          by third parties. They may be incomplete, delayed or unavailable.
+          Confirm event times, access, prices and bookings with the organiser or
+          venue before travelling.
+        </p>
+        <h2>Your account and contributions</h2>
+        <p>
+          Keep your sign-in details secure. Share content you have the right to
+          share. Do not post abusive, unlawful, misleading or private personal
+          information. You can delete your own posts. Contact us to report a
+          concern.
+        </p>
+        <h2>Personal activity information</h2>
+        <p>
+          Workout comparisons provide context for your own records. They are not
+          medical advice, personalised coaching or a measure of your ability
+          against a population.
+        </p>
+        <h2>Third-party content</h2>
+        <p>
+          Source data, map tiles, photographs and broadcasts remain subject to
+          their owners’ terms. The application’s MIT software licence does not
+          replace those terms.
+        </p>
+        <h2>Questions</h2>
+        <p>
+          <Link to="/contact">Contact PlayAxis</Link> if something is unclear or
+          isn’t working as expected.
+        </p>
+      </article>
+    </>
   );
 }

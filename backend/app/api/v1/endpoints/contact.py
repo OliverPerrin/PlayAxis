@@ -1,48 +1,57 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel, EmailStr
+"""Optional SMTP contact endpoint. Never reports success for an unsent message."""
+
 import smtplib
-import os
 from email.message import EmailMessage
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr, Field
+from app.core.config import settings
 
 router = APIRouter()
 
+
 class ContactRequest(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    subject: str | None = None
-    message: str
-
-SUPPORT_EMAIL = os.getenv("CONTACT_RECIPIENT_EMAIL", "oliver.t.perrin@gmail.com")
-SENDER_EMAIL = os.getenv("CONTACT_SENDER_EMAIL")  # e.g. an SMTP-enabled no-reply
-SENDER_PASSWORD = os.getenv("CONTACT_SENDER_PASSWORD")
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    subject: str = Field(default="Website enquiry", max_length=150)
+    message: str = Field(min_length=5, max_length=3000)
 
 
-def send_email(name: str, email: str, subject: str | None, content: str):
-    if not (SENDER_EMAIL and SENDER_PASSWORD):
-        # In dev, just log to console instead of failing
-        print("[contact] SENDER_EMAIL or password not set; message captured:")
-        print({"from": email, "name": name, "message": content})
-        return
-    msg = EmailMessage()
-    subj_core = subject.strip() if subject else name
-    msg["Subject"] = f"PlayAxis Contact: {subj_core}"[:180]
-    msg["From"] = SENDER_EMAIL
-    msg["To"] = SUPPORT_EMAIL
-    msg.set_content(f"From: {name} <{email}>\n\n{content}")
+@router.post("")
+@router.post("/")
+def contact(body: ContactRequest):
+    if not all(
+        [
+            settings.SMTP_HOST,
+            settings.CONTACT_SENDER_EMAIL,
+            settings.CONTACT_SENDER_PASSWORD,
+            settings.CONTACT_RECIPIENT_EMAIL,
+        ]
+    ):
+        raise HTTPException(
+            503,
+            "Email delivery is not configured. Use the email draft on the Contact page.",
+        )
+    message = EmailMessage()
+    message["Subject"] = "PlayAxis: " + body.subject.replace("\r", " ").replace(
+        "\n", " "
+    )
+    message["From"] = settings.CONTACT_SENDER_EMAIL
+    message["To"] = settings.CONTACT_RECIPIENT_EMAIL
+    message["Reply-To"] = str(body.email)
+    message.set_content(f"From: {body.name} <{body.email}>\n\n{body.message}")
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
-    except Exception as e:
-        print("[contact] email send failed", e)
-        raise
-
-@router.post("/", status_code=202)
-async def submit_contact(req: ContactRequest, background: BackgroundTasks):
-    if len(req.message.strip()) < 5:
-        raise HTTPException(status_code=400, detail="Message too short")
-    background.add_task(send_email, req.name, req.email, req.subject, req.message)
-    return {"ok": True}
+        with smtplib.SMTP(
+            settings.SMTP_HOST, settings.SMTP_PORT or 587, timeout=15
+        ) as smtp:
+            smtp.starttls()
+            smtp.login(settings.CONTACT_SENDER_EMAIL, settings.CONTACT_SENDER_PASSWORD)
+            smtp.send_message(message)
+    except (OSError, smtplib.SMTPException) as exc:
+        raise HTTPException(
+            502,
+            "The email provider did not accept your message. Please use your email app.",
+        ) from exc
+    return {
+        "accepted": True,
+        "detail": "The mail provider accepted the message. Final delivery is not confirmed.",
+    }

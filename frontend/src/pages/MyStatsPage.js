@@ -1,144 +1,265 @@
-import React, { useState, useContext } from 'react';
-import { motion } from 'framer-motion';
-import { PlusIcon, PlayIcon, StopIcon, BoltIcon, FireIcon, ClockIcon, MapPinIcon, ArrowTrendingUpIcon, TrophyIcon } from '@heroicons/react/24/outline';
-import { ThemeContext } from '../contexts/ThemeContext';
-
-const MyStatsPage = () => {
-  const [selectedSport, setSelectedSport] = useState('running');
-  const [selectedPeriod, setSelectedPeriod] = useState('week');
-  const [isTracking, setIsTracking] = useState(false);
-
-  const sports = [
-    { id: 'running', name: 'Running', icon: '🏃‍♂️', color: 'from-cyan-500 to-emerald-500' },
-    { id: 'cycling', name: 'Cycling', icon: '🚴‍♂️', color: 'from-emerald-500 to-teal-500' },
-    { id: 'swimming', name: 'Swimming', icon: '🏊‍♂️', color: 'from-blue-500 to-cyan-500' },
-    { id: 'tennis', name: 'Tennis', icon: '🎾', color: 'from-lime-500 to-emerald-500' },
-    { id: 'basketball', name: 'Basketball', icon: '🏀', color: 'from-amber-500 to-yellow-500' },
-    { id: 'soccer', name: 'Soccer', icon: '⚽', color: 'from-indigo-500 to-blue-500' }
-  ];
-
-  const periods = [
-    { id: 'week', name: 'This Week' },
-    { id: 'month', name: 'This Month' },
-    { id: 'year', name: 'This Year' },
-    { id: 'all', name: 'All Time' }
-  ];
-
-  const mockStats = {
-    running: { week: { distance: 42.5, time: 285, calories: 3200, sessions: 5, trend: 12.5 } },
-    cycling: { week: { distance: 120.8, time: 420, calories: 2800, sessions: 3, trend: 15.2 } }
-  };
-
-  const currentStats = mockStats[selectedSport]?.[selectedPeriod] || { distance: 0, time: 0, calories: 0, sessions: 0, trend: 0 };
-  const weeklyProgress = [
-    { day: 'Mon', value: 85 }, { day: 'Tue', value: 92 }, { day: 'Wed', value: 78 },
-    { day: 'Thu', value: 95 }, { day: 'Fri', value: 88 }, { day: 'Sat', value: 100 }, { day: 'Sun', value: 65 }
-  ];
-
-  const { theme } = useContext(ThemeContext);
-  const isDark = theme === 'dark';
-  const heading = isDark ? 'text-white' : 'text-slate-900';
-  const sub = isDark ? 'text-gray-300' : 'text-slate-600';
-  const surface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
-  const pillOn = 'bg-gradient-to-r from-cyan-600 to-emerald-600 text-white';
-  const pillOff = isDark ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200';
-  const metricSurface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
-  const metricLabel = isDark ? 'text-gray-300' : 'text-slate-600';
-  const bigNumber = isDark ? 'text-white' : 'text-slate-900';
-
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import ActivityTimer from "../components/ActivityTimer";
+import { PlusIcon } from "@heroicons/react/24/outline";
+import { useAuth } from "../contexts/AuthContext";
+import { usePreferences } from "../contexts/PreferencesContext";
+import { getWorkouts, deleteWorkout } from "../api";
+import useResource from "../hooks/useResource";
+import {
+  PageHeader,
+  AuthGate,
+  ResourceState,
+  EmptyState,
+  Metric,
+  formatDate,
+  downloadFile,
+} from "../components/ui";
+import {
+  totalWorkouts,
+  inPeriod,
+  distanceDisplay,
+  pace,
+} from "../utils/workouts";
+function Stats() {
+  const { user } = useAuth();
+  const { preferences } = usePreferences();
+  const location = useLocation();
+  const [days, setDays] = useState(7);
+  const [deleting, setDeleting] = useState(null);
+  const [error, setError] = useState("");
+  const resource = useResource(`workouts:${user.id}`, getWorkouts);
+  const all = resource.data?.workouts || [];
+  const workouts = inPeriod(all, days);
+  const totals = totalWorkouts(workouts);
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - 6 + i);
+    const minutes = all
+      .filter(
+        (w) => new Date(w.started_at).toDateString() === date.toDateString(),
+      )
+      .reduce((v, w) => v + w.duration_sec / 60, 0);
+    return { date, minutes };
+  });
+  const max = Math.max(30, ...week.map((d) => d.minutes));
+  async function remove(id) {
+    setError("");
+    try {
+      await deleteWorkout(id);
+      setDeleting(null);
+      resource.reload();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center">
-          <div>
-            <h1 className={`text-4xl font-bold mb-2 ${heading}`}>My Performance</h1>
-            <p className={sub}>Track your athletic journey and progress</p>
-          </div>
-          <div className="flex items-center gap-3 mt-4 lg:mt-0">
-            <button className={`flex items-center gap-2 px-5 py-3 rounded-xl ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'}`}><PlusIcon className="w-5 h-5" /> Quick Log</button>
-            {!isTracking ? (
-              <button onClick={() => setIsTracking(true)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl font-semibold"><PlayIcon className="w-5 h-5" /> Start Workout</button>
-            ) : (
-              <button onClick={() => setIsTracking(false)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl font-semibold"><StopIcon className="w-5 h-5" /> Stop Workout</button>
-            )}
-          </div>
+    <ResourceState resource={resource}>
+      {location.state?.saved && (
+        <p role="status" className="notice success">
+          Activity saved. Your training log is up to date.
+        </p>
+      )}
+      <div className="toolbar">
+        <div className="segmented" style={{ margin: 0 }}>
+          {[
+            [7, "Last 7 days"],
+            [30, "Last 30 days"],
+            [0, "All time"],
+          ].map(([d, label]) => (
+            <button
+              key={d}
+              className={days === d ? "active" : ""}
+              aria-pressed={days === d}
+              onClick={() => setDays(d)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-
-        <div className={`${surface} backdrop-blur-lg rounded-2xl p-6`}>
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-            {sports.map((s) => (
-              <button key={s.id} onClick={() => setSelectedSport(s.id)} className={`flex flex-col items-center gap-1 p-4 rounded-xl ${selectedSport === s.id ? `bg-gradient-to-r ${s.color} text-white` : pillOff}`}>
-                <span className="text-2xl">{s.icon}</span>
-                <span className="text-sm font-medium">{s.name}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            {periods.map((p) => (
-              <button key={p.id} onClick={() => setSelectedPeriod(p.id)} className={`py-2.5 px-4 rounded-xl font-medium ${selectedPeriod === p.id ? pillOn : pillOff}`}>
-                {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className={`${metricSurface} rounded-2xl p-6`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center"><MapPinIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+{currentStats.trend}%</span></div>
-            </div>
-            <div className={`text-3xl font-bold mb-1 ${bigNumber}`}>{currentStats.distance} km</div>
-            <div className={metricLabel}>Total Distance</div>
-          </div>
-
-          <div className={`${metricSurface} rounded-2xl p-6`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-xl flex items-center justify-center"><ClockIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+5.2%</span></div>
-            </div>
-            <div className={`text-3xl font-bold mb-1 ${bigNumber}`}>{Math.floor((currentStats.time || 0) / 60)}h {(currentStats.time || 0) % 60}m</div>
-            <div className={metricLabel}>Active Time</div>
-          </div>
-
-          <div className={`${metricSurface} rounded-2xl p-6`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-xl flex items-center justify-center"><FireIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+18.7%</span></div>
-            </div>
-            <div className={`text-3xl font-bold mb-1 ${bigNumber}`}>{(currentStats.calories || 0).toLocaleString()}</div>
-            <div className={metricLabel}>Calories Burned</div>
-          </div>
-
-          <div className={`${metricSurface} rounded-2xl p-6`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center"><TrophyIcon className="w-6 h-6 text-white" /></div>
-              <div className="flex items-center gap-1 text-emerald-400"><ArrowTrendingUpIcon className="w-4 h-4" /><span className="text-sm font-medium">+12.5%</span></div>
-            </div>
-            <div className={`text-3xl font-bold mb-1 ${bigNumber}`}>{currentStats.sessions || 0}</div>
-            <div className={metricLabel}>Training Sessions</div>
-          </div>
-        </div>
-
-        <div className={`${surface} rounded-2xl p-6`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`text-xl font-bold ${heading}`}>Weekly Progress</h3>
-            <div className="flex items-center gap-2 text-emerald-300"><BoltIcon className="w-5 h-5" /> <span className="font-semibold">+15% vs last week</span></div>
-          </div>
-
-          <div className="flex items-end gap-4 h-40">
-            {weeklyProgress.map((d, i) => (
-              <motion.div key={d.day} initial={{ height: 0 }} animate={{ height: `${d.value}%` }} transition={{ delay: 0.2 + i * 0.05, duration: 0.5 }} className="flex-1 relative group">
-                <div className="bg-gradient-to-t from-cyan-600 to-emerald-500 rounded-t-lg w-full" style={{ height: `${d.value}%` }} />
-                <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-sm ${metricLabel}`}>{d.day}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
+        <button
+          className="button secondary"
+          style={{ marginLeft: "auto" }}
+          disabled={!all.length}
+          onClick={() =>
+            downloadFile(
+              "playaxis-activities.json",
+              JSON.stringify(all, null, 2),
+            )
+          }
+        >
+          Export activities
+        </button>
       </div>
-    </div>
+      <div className="page-stack">
+        <ActivityTimer />
+        <div className="metrics-grid">
+          <Metric
+            label="Activities"
+            value={totals.count}
+            caption="Recorded by you"
+          />
+          <Metric
+            label="Distance"
+            value={distanceDisplay(totals.distance, preferences.units)}
+            unit={preferences.units === "imperial" ? "mi" : "km"}
+            caption="Across your activities"
+          />
+          <Metric
+            label="Time spent"
+            value={Math.round(totals.minutes)}
+            unit="min"
+            caption="Every minute counts"
+          />
+        </div>
+        <section className="panel panel-pad">
+          <div className="section-title">
+            <h2>Your last seven days</h2>
+            <span className="small muted">Minutes moving</span>
+          </div>
+          <div
+            className="chart-bars"
+            role="img"
+            aria-label={week
+              .map(
+                (d) =>
+                  `${d.date.toLocaleDateString(undefined, { weekday: "long" })}: ${Math.round(d.minutes)} minutes`,
+              )
+              .join(", ")}
+          >
+            {week.map((d) => (
+              <div className="chart-column" key={d.date.toISOString()}>
+                <span>{Math.round(d.minutes)}</span>
+                <div style={{ height: `${(d.minutes / max) * 100}%` }} />
+                <small>
+                  {d.date.toLocaleDateString(undefined, { weekday: "short" })}
+                </small>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-pad">
+            <h2>Your training log</h2>
+          </div>
+          {error && (
+            <p role="alert" className="notice error">
+              {error}
+            </p>
+          )}
+          {workouts.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Activity</th>
+                    <th>Date</th>
+                    <th>Duration</th>
+                    <th>Distance</th>
+                    <th>Pace</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workouts.map((w) => (
+                    <tr key={w.id}>
+                      <td>
+                        <p className="activity-title">{w.sport}</p>
+                        {w.notes && (
+                          <p
+                            className="muted small"
+                            style={{
+                              fontWeight: 400,
+                              maxWidth: 260,
+                              whiteSpace: "pre-wrap",
+                            }}
+                          >
+                            {w.notes}
+                          </p>
+                        )}
+                      </td>
+                      <td>{formatDate(w.started_at, { year: "numeric" })}</td>
+                      <td>{Math.round(w.duration_sec / 60)} min</td>
+                      <td>
+                        {w.distance_m == null
+                          ? "Not recorded"
+                          : `${distanceDisplay(w.distance_m / 1000, preferences.units)} ${preferences.units === "imperial" ? "mi" : "km"}`}
+                      </td>
+                      <td>{pace(w, preferences.units)}</td>
+                      <td>
+                        <div className="table-actions">
+                          <Link
+                            className="text-link"
+                            to={`/log-workout?edit=${w.id}`}
+                          >
+                            Edit
+                          </Link>
+                          {deleting === w.id ? (
+                            <>
+                              <button
+                                className="text-button danger"
+                                onClick={() => remove(w.id)}
+                              >
+                                Confirm delete
+                              </button>
+                              <button
+                                className="text-button"
+                                onClick={() => setDeleting(null)}
+                              >
+                                Keep
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="text-button danger"
+                              onClick={() => setDeleting(w.id)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              title="Make your first mark"
+              action={
+                <Link className="button primary" to="/log-workout">
+                  Log an activity
+                </Link>
+              }
+            >
+              Your activities will appear here. A walk, a ride or a quick
+              practice session is a good place to start.
+            </EmptyState>
+          )}
+        </section>
+      </div>
+    </ResourceState>
   );
-};
-
-export default MyStatsPage;
+}
+export default function MyStatsPage() {
+  return (
+    <>
+      <PageHeader
+        eyebrow="Progress, at your pace"
+        title="My activity"
+        description="A little perspective on the effort you’re putting in."
+      >
+        <Link to="/log-workout" className="button primary">
+          <PlusIcon />
+          Log activity
+        </Link>
+      </PageHeader>
+      <AuthGate>
+        <Stats />
+      </AuthGate>
+    </>
+  );
+}

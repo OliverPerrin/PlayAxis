@@ -1,53 +1,17 @@
-// Utility to build a unified sports list (API + manual extras) with icons
-// Each item: { key, label, icon }
-
-const MANUAL_SPORTS = [
-  { key: 'nfl', label: 'NFL', icon: '🏈' },
-  { key: 'nba', label: 'NBA', icon: '🏀' },
-  { key: 'mlb', label: 'MLB', icon: '⚾' },
-  { key: 'nhl', label: 'NHL', icon: '🏒' },
-  { key: 'f1', label: 'F1', icon: '🏎️' },
-  { key: 'skiing', label: 'Skiing', icon: '🎿' },
-  { key: 'tennis', label: 'Tennis', icon: '🎾' },
-  { key: 'golf', label: 'Golf', icon: '⛳' },
-  { key: 'cricket', label: 'Cricket', icon: '🏏' },
-  { key: 'rugby', label: 'Rugby', icon: '🏉' },
-  { key: 'cycling', label: 'Cycling', icon: '🚴‍♂️' },
-  { key: 'running', label: 'Running', icon: '🏃‍♂️' },
-  { key: 'esports', label: 'Esports', icon: '🎮' },
+export const LEAGUES = [
+  { key: "bundesliga", name: "Bundesliga", sport: "Football" },
+  { key: "f1", name: "Formula 1", sport: "Motorsport" },
+  { key: "mlb", name: "MLB", sport: "Baseball" },
+  { key: "nhl", name: "NHL", sport: "Ice hockey" },
+  { key: "epl", name: "Premier League", sport: "Football" },
+  { key: "nba", name: "NBA", sport: "Basketball" },
+  { key: "nfl", name: "NFL", sport: "American football" },
 ];
-
-// Basic icon mapping for common API sports (fallback medal)
-const ICON_MAP = {
-  soccer: '⚽',
-  basketball: '🏀',
-  baseball: '⚾',
-  american_football: '🏈',
-  ice_hockey: '🏒',
-  hockey: '🏒',
-  volleyball: '🏐',
-  fighting: '🥊',
-  boxing: '🥊',
-  mma: '🥋',
-  golf: '⛳',
-  tennis: '🎾',
-  cricket: '🏏',
-  rugby: '🏉',
-  cycling: '🚴‍♂️',
-  athletics: '🏃‍♂️',
-  running: '🏃‍♂️'
-};
-
-export function buildUnifiedSports(apiSports = []) {
-  const base = (apiSports || []).map(s => {
-    const raw = (s.strSport || '').trim();
-    if (!raw) return null;
-    const key = raw.toLowerCase().replace(/\s+/g, '_');
-    return { key, label: raw, icon: ICON_MAP[key] || '🏅' };
-  }).filter(Boolean);
-  const merged = [...base];
-  MANUAL_SPORTS.forEach(m => { if (!merged.some(x => x.key === m.key)) merged.push(m); });
-  return merged.sort((a, b) => a.label.localeCompare(b.label));
+export const SPORT_OPTIONS = LEAGUES.map((l) => ({
+  value: l.key,
+  label: l.name,
+}));
+export const canonicalSportKey = (key) => key;
+export function sportLabel(key) {
+  return LEAGUES.find((l) => l.key === key)?.name || key;
 }
-
-export { MANUAL_SPORTS };

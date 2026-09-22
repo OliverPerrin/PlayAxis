@@ -1,16 +1,16 @@
 {
   "short_name": "PlayAxis",
   "name": "PlayAxis",
-  "start_url": "./?v=4",
+  "start_url": "/",
   "display": "standalone",
-  "theme_color": "#0B1220",
-  "background_color": "#0B1220",
-  "description": "Discover events, set goals, and move together.",
+  "theme_color": "#181613",
+  "background_color": "#f4efe5",
+  "description": "Discover sport, find places to play, and track your activities.",
   "icons": [
     {
-      "src": "playaxis-icon.png?v=4",
-      "type": "image/png",
-      "sizes": "512x512"
+      "src": "playaxis-mark.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
     }
   ]
 }

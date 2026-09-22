@@ -12,8 +12,14 @@ from .... import security
 logger = logging.getLogger("auth")
 router = APIRouter()
 
-def derive_username(preferred: Optional[str], email: str, full_name: Optional[str]) -> str:
-    return (preferred or full_name or (email.split("@")[0] if "@" in email else email)).strip()
+
+def derive_username(
+    preferred: Optional[str], email: str, full_name: Optional[str]
+) -> str:
+    return (
+        preferred or full_name or (email.split("@")[0] if "@" in email else email)
+    ).strip()
+
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterIn, db: Session = Depends(get_db)):
@@ -21,6 +27,10 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
         if db.query(User).filter(User.email == body.email).first():
             raise HTTPException(status_code=400, detail="Email already registered")
 
+        if db.query(User).filter(User.full_name == body.username).first():
+            raise HTTPException(
+                status_code=400, detail="This username is already in use"
+            )
         user = User(
             email=body.email,
             hashed_password=security.hash_password(body.password),
@@ -38,8 +48,12 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         logger.exception("register failed")
-        raise HTTPException(status_code=500, detail="Registration failed. Please try again.") from e
+        raise HTTPException(
+            status_code=500, detail="Registration failed. Please try again."
+        ) from e
+
 
 @router.post("/login", response_model=Token)
 def login(body: LoginIn, db: Session = Depends(get_db)):
@@ -53,8 +67,12 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
         if not user:
             user = db.query(User).filter(User.full_name == identifier).first()
 
-        if not user or not security.verify_password(body.password, user.hashed_password):
-            raise HTTPException(status_code=401, detail="Invalid username/email or password")
+        if not user or not security.verify_password(
+            body.password, user.hashed_password
+        ):
+            raise HTTPException(
+                status_code=401, detail="Invalid username/email or password"
+            )
 
         # Encode sub=email to align with get_current_user
         token = security.create_access_token(sub=user.email)
@@ -63,21 +81,31 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.exception("login failed")
-        raise HTTPException(status_code=500, detail="Login failed. Please try again.") from e
+        raise HTTPException(
+            status_code=500, detail="Login failed. Please try again."
+        ) from e
+
 
 @router.post("/token", response_model=Token)
-def login_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login_token(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
     identifier = (form_data.username or "").strip()
 
     user = db.query(User).filter(User.email == identifier).first()
     if not user:
         user = db.query(User).filter(User.full_name == identifier).first()
 
-    if not user or not security.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid username/email or password")
+    if not user or not security.verify_password(
+        form_data.password, user.hashed_password
+    ):
+        raise HTTPException(
+            status_code=401, detail="Invalid username/email or password"
+        )
 
     token = security.create_access_token(sub=user.email)
     return {"access_token": token}
+
 
 @router.get("/me", response_model=UserOut)
 def me(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):

@@ -9,7 +9,6 @@ from .endpoints.streams import router as streams_router
 from .endpoints.aggregate import router as aggregate_router
 from .endpoints.leaderboards import router as leaderboards_router
 from .endpoints.contact import router as contact_router
-from .endpoints.google_events_debug import router as google_events_debug_router
 from .endpoints.athletes import router as athletes_router
 from .endpoints.workouts import router as workouts_router
 
@@ -21,8 +20,25 @@ api_router.include_router(sports_router, prefix="/sports", tags=["sports"])
 api_router.include_router(weather_router, prefix="/weather", tags=["weather"])
 api_router.include_router(streams_router, prefix="/streams", tags=["streams"])
 api_router.include_router(aggregate_router, prefix="/aggregate", tags=["aggregate"])
-api_router.include_router(leaderboards_router, prefix="/leaderboards", tags=["leaderboards"])
+api_router.include_router(
+    leaderboards_router, prefix="/leaderboards", tags=["leaderboards"]
+)
 api_router.include_router(contact_router, prefix="/contact", tags=["contact"])
-api_router.include_router(google_events_debug_router, prefix="/google-events", tags=["google-events-debug"])
 api_router.include_router(athletes_router)
 api_router.include_router(workouts_router)
+from .endpoints.places import router as places_router
+from .endpoints.community import router as community_router
+
+api_router.include_router(places_router, tags=["places"])
+api_router.include_router(community_router, prefix="/community", tags=["community"])
+from .endpoints.participation import router as participation_router
+
+api_router.include_router(participation_router, tags=["participation"])
+from .endpoints.discovery import router as discovery_router
+
+api_router.include_router(discovery_router, tags=["discovery"])
+from .endpoints.recommendations import router as recommendations_router
+
+api_router.include_router(
+    recommendations_router, prefix="/recommendations", tags=["recommendations"]
+)

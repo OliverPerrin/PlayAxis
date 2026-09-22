@@ -1,118 +1,317 @@
-import React, { useEffect, useState } from 'react';
-import { getSportsEvents, searchTeams, teamUpcomingEvents } from '../api';
-import { useTheme } from '../contexts/ThemeContext';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import SportSelector from '../components/SportSelector';
-
-const MatchesPage = () => {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  const [sportKey, setSportKey] = useState('soccer');
-  const [snapshot, setSnapshot] = useState({ upcoming: [], recent: [] });
-  const [loading, setLoading] = useState(false);
-  const [teamQuery, setTeamQuery] = useState('');
-  const [teamResults, setTeamResults] = useState([]);
-  const [teamUpcoming, setTeamUpcoming] = useState([]);
-  const [searchingTeams, setSearchingTeams] = useState(false);
-
-  // sport list handled in SportSelector
-
-  useEffect(() => {
-    setLoading(true);
-    getSportsEvents(sportKey).then(s => { setSnapshot(s); setLoading(false); }).catch(() => setLoading(false));
-  }, [sportKey]);
-
-  useEffect(() => {
-    if (teamQuery.trim().length < 2) { setTeamResults([]); return; }
-    const h = setTimeout(() => {
-      setSearchingTeams(true);
-      searchTeams(teamQuery).then(r => { setTeamResults(r.players || []); setSearchingTeams(false); }).catch(() => setSearchingTeams(false));
-    }, 350);
-    return () => clearTimeout(h);
-  }, [teamQuery]);
-
-  const selectTeam = (t) => {
-    setTeamQuery(t.strTeam || t.strPlayer || '');
-    setTeamResults([]);
-    if (t.idTeam) {
-      teamUpcomingEvents(t.idTeam).then(res => setTeamUpcoming(res.upcoming || []));
-    } else {
-      setTeamUpcoming([]);
-    }
-  };
-
-  const heading = isDark ? 'text-white' : 'text-slate-900';
-  const surface = isDark ? 'bg-white/10 border-white/20' : 'bg-white border-slate-200 shadow-sm';
-  const surfaceCls = `rounded-2xl p-4 border ${surface}`;
-
-  const EventCard = ({ ev }) => (
-    <div className={`rounded-xl p-4 text-sm md:text-base flex flex-col gap-1.5 border ${isDark ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'} shadow-sm`}> 
-      <div className="font-semibold tracking-wide">{ev.home_team} <span className="text-emerald-500">vs</span> {ev.away_team}</div>
-      <div className={`${isDark ? 'text-gray-200' : 'text-slate-700'} text-xs md:text-sm font-medium`}>{ev.date} {ev.time || ''}</div>
-      <div className={`${isDark ? 'text-gray-400' : 'text-slate-500'} text-[11px] md:text-xs`}>{ev.venue || ev.city || ev.league}</div>
-      {ev.status && (
-        <div className={`text-[10px] md:text-xs uppercase tracking-wide ${isDark ? 'text-cyan-300' : 'text-emerald-600'}`}>
-          {ev.status}
-        </div>
-      )}
-    </div>
-  );
-
+import React, { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { getSportsEvents, searchTeams, teamUpcomingEvents } from "../api";
+import useResource from "../hooks/useResource";
+import { usePreferences } from "../contexts/PreferencesContext";
+import {
+  PageHeader,
+  ResourceState,
+  EmptyState,
+  SourceNote,
+  formatDate,
+  formatTime,
+  safeURL,
+  SearchField,
+} from "../components/ui";
+import { LEAGUES } from "../utils/sports";
+function Match({ match }) {
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row md:items-end gap-4 justify-between">
-          <div>
-            <h1 className={`text-4xl font-bold mb-2 ${heading}`}>Matches</h1>
-            <p className={isDark ? 'text-gray-300' : 'text-slate-600'}>Browse upcoming and recent events across all sports.</p>
+    <article className="match-card">
+      <div className="match-meta">
+        <Link
+          className="text-link"
+          to={`/events/${match.id}`}
+          state={{ event: match }}
+        >
+          {formatDate(match.start)} · {formatTime(match.start)}
+        </Link>
+        <span>
+          {match.status || (match.completed ? "Finished" : "Scheduled")}
+        </span>
+      </div>
+      {match.home_team ? (
+        <div className="match-teams">
+          <div className="team-name">
+            {safeURL(match.home_badge) && (
+              <img
+                src={safeURL(match.home_badge)}
+                alt=""
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+            {match.home_team}
           </div>
-          <div className="flex gap-3 items-start">
-            <SportSelector value={sportKey} onChange={setSportKey} condensed />
-            <div className="relative w-64">
-              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-2.5 opacity-60" />
-              <input value={teamQuery} onChange={e => setTeamQuery(e.target.value)} placeholder="Search team" className={`w-full pl-10 px-4 py-2 rounded-xl ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white border border-slate-300 text-slate-900'}`} />
-              {teamResults.length > 0 && (
-                <div className={`absolute z-10 mt-1 max-h-56 overflow-y-auto w-full rounded-xl ${isDark ? 'bg-gray-900 border border-white/10' : 'bg-white border border-slate-200'} shadow-lg`}>
-                  {teamResults.slice(0, 15).map(t => (
-                    <button key={t.idTeam || t.id} type="button" onClick={() => selectTeam(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-500/10">
-                      {(t.strTeam || t.strPlayer || 'Team')} <span className="opacity-60">{t.strLeague || ''}</span>
+          <div className="match-score">
+            {match.home_score != null && match.away_score != null
+              ? `${match.home_score} : ${match.away_score}`
+              : "vs"}
+          </div>
+          <div className="team-name">
+            {match.away_team}
+            {safeURL(match.away_badge) && (
+              <img
+                src={safeURL(match.away_badge)}
+                alt=""
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        <h3>{match.name}</h3>
+      )}
+      <p className="source-note" style={{ marginTop: 13 }}>
+        {match.venue || match.league || "Venue to be confirmed"}
+      </p>
+    </article>
+  );
+}
+export default function MatchesPage() {
+  const { followedTeams, toggleTeam } = usePreferences();
+  const [params, setParams] = useSearchParams();
+  const sport = params.get("sport") || "bundesliga";
+  const teamId = params.get("team");
+  const [period, setPeriod] = useState("all");
+  const [teamQuery, setTeamQuery] = useState("");
+  const [query, setQuery] = useState("");
+  const [visible, setVisible] = useState(20);
+  const resource = useResource(!teamId ? `matches:${sport}` : null, () =>
+    getSportsEvents(sport),
+  );
+  const search = useResource(query ? `teams:${query}` : null, () =>
+    searchTeams(query),
+  );
+  const teamEvents = useResource(teamId ? `team:${teamId}` : null, () =>
+    teamUpcomingEvents(teamId),
+  );
+  const team =
+    teamEvents.data?.team ||
+    followedTeams.find((t) => String(t.idTeam) === teamId);
+  const focusedLeague = {
+    4328: "epl",
+    4331: "bundesliga",
+    4387: "nba",
+    4391: "nfl",
+    4380: "nhl",
+    4424: "mlb",
+  }[team?.idLeague];
+  const activeLeague = teamId ? focusedLeague : sport;
+  const upcoming = resource.data?.upcoming || [];
+  const recent = resource.data?.recent || [];
+  const items =
+    period === "upcoming"
+      ? upcoming
+      : period === "recent"
+        ? recent
+        : [...upcoming, ...recent];
+  useEffect(() => setVisible(20), [sport, period, teamId]);
+  return (
+    <>
+      <PageHeader
+        eyebrow="02 / FOLLOW"
+        title="Match centre"
+        description="Your leagues, your teams, and the next reason to care about the score."
+      >
+        <select
+          aria-label="Choose league"
+          value={activeLeague || ""}
+          onChange={(e) => {
+            setParams({ sport: e.target.value });
+            setPeriod("all");
+          }}
+        >
+          <option value="" disabled>
+            Choose a league
+          </option>
+          {LEAGUES.map((l) => (
+            <option key={l.key} value={l.key}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+      </PageHeader>
+      <div className="inline-links">
+        {activeLeague && (
+          <>
+            <Link to={`/leaderboards?sport=${activeLeague}`}>
+              Standings & records
+            </Link>
+            <Link to={`/events?sport=${activeLeague}`}>Calendar view</Link>
+          </>
+        )}
+        <Link to="/watch">Watch live</Link>
+      </div>
+      <section className="panel panel-pad" style={{ marginBottom: 25 }}>
+        <div className="section-title">
+          <h2>Keep your team close.</h2>
+          {teamId && (
+            <Link
+              className="text-link"
+              to={`/matches?sport=${activeLeague || sport}`}
+            >
+              Back to league fixtures
+            </Link>
+          )}
+        </div>
+        <form
+          className="toolbar"
+          style={{ marginBottom: 0 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (query === teamQuery.trim()) search.reload();
+            else setQuery(teamQuery.trim());
+          }}
+        >
+          <SearchField
+            value={teamQuery}
+            onChange={(e) => setTeamQuery(e.target.value)}
+            placeholder="Team name, for example Arsenal"
+            label="Search team"
+            required
+            minLength={2}
+          />
+          <button className="button secondary">Find team</button>
+        </form>
+        {query && (
+          <ResourceState resource={search}>
+            {search.data?.teams?.length ? (
+              <ul className="city-results">
+                {search.data.teams.map((t) => (
+                  <li key={t.idTeam}>
+                    <button
+                      onClick={() => {
+                        setParams({ sport, team: t.idTeam });
+                        setQuery("");
+                        setTeamQuery("");
+                      }}
+                    >
+                      {t.strTeam}
+                      <span>{t.strLeague}</span>
                     </button>
-                  ))}
-                  {searchingTeams && <div className="px-3 py-2 text-xs opacity-60">Searching...</div>}
-                </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="source-note">No team found. Try the full name.</p>
+            )}
+          </ResourceState>
+        )}
+        {followedTeams.length > 0 && (
+          <>
+            <div className="followed-teams" style={{ marginTop: 20 }}>
+              {followedTeams.map((t) => (
+                <button
+                  className="followed-team"
+                  style={{
+                    textAlign: "left",
+                    borderColor:
+                      teamId === t.idTeam ? "var(--accent)" : undefined,
+                  }}
+                  key={t.idTeam}
+                  onClick={() => setParams({ sport, team: t.idTeam })}
+                >
+                  <strong>{t.strTeam}</strong>
+                  <p>{t.strLeague}</p>
+                </button>
+              ))}
+            </div>
+            <p className="source-note">
+              Followed teams are saved on this device.
+            </p>
+          </>
+        )}
+      </section>
+      {teamId ? (
+        <ResourceState resource={teamEvents}>
+          <section className="panel">
+            <div
+              className="panel-pad section-title"
+              style={{ marginBottom: 0 }}
+            >
+              <div>
+                <p className="eyebrow">UPCOMING FIXTURES</p>
+                <h2>{team?.strTeam || "Selected team"}</h2>
+              </div>
+              {team && (
+                <button
+                  className="follow-button"
+                  aria-pressed={followedTeams.some(
+                    (t) => t.idTeam === team.idTeam,
+                  )}
+                  onClick={() => toggleTeam(team)}
+                >
+                  {followedTeams.some((t) => t.idTeam === team.idTeam)
+                    ? "Following team"
+                    : "Follow this team"}
+                </button>
               )}
             </div>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className={surfaceCls}>
-            <h2 className={`font-semibold mb-4 text-lg md:text-xl ${heading}`}>Upcoming ({snapshot.upcoming.length})</h2>
-            <div className="space-y-3">
-              {loading && <div className="text-xs opacity-60 animate-pulse">Loading...</div>}
-              {!loading && snapshot.upcoming.slice(0, 15).map(e => <EventCard key={e.id} ev={e} />)}
-              {!loading && snapshot.upcoming.length === 0 && <div className="text-xs opacity-50">No upcoming events.</div>}
+            {teamEvents.data?.upcoming?.length ? (
+              teamEvents.data.upcoming.map((m) => (
+                <Match key={m.id} match={m} />
+              ))
+            ) : (
+              <EmptyState title="No upcoming fixture is available yet.">
+                Follow this team and check back when its schedule is published.
+              </EmptyState>
+            )}
+            <div className="panel-pad" style={{ paddingTop: 0 }}>
+              <SourceNote data={teamEvents.data} />
             </div>
+          </section>
+        </ResourceState>
+      ) : (
+        <>
+          <div className="segmented">
+            {[
+              ["all", "All fixtures"],
+              ["upcoming", "Upcoming"],
+              ["recent", "Recent results"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                className={period === key ? "active" : ""}
+                aria-pressed={period === key}
+                onClick={() => setPeriod(key)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <div className={surfaceCls}>
-            <h2 className={`font-semibold mb-4 text-lg md:text-xl ${heading}`}>Recent ({snapshot.recent.length})</h2>
-            <div className="space-y-3">
-              {loading && <div className="text-xs opacity-60 animate-pulse">Loading...</div>}
-              {!loading && snapshot.recent.slice(0, 15).map(e => <EventCard key={e.id} ev={e} />)}
-              {!loading && snapshot.recent.length === 0 && <div className="text-xs opacity-50">No recent events.</div>}
-            </div>
-          </div>
-          <div className={surfaceCls}>
-            <h2 className={`font-semibold mb-4 text-lg md:text-xl ${heading}`}>Team Upcoming</h2>
-            <div className="space-y-3">
-              {teamUpcoming.map(e => <EventCard key={e.id} ev={e} />)}
-              {teamUpcoming.length === 0 && <div className="text-xs opacity-50">Select a team to view.</div>}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          <ResourceState resource={resource}>
+            {items.length ? (
+              <section className="panel">
+                {items.slice(0, visible).map((m) => (
+                  <Match key={m.id} match={m} />
+                ))}
+                {items.length > visible && (
+                  <div className="panel-pad">
+                    <button
+                      className="button secondary"
+                      onClick={() => setVisible((v) => v + 20)}
+                    >
+                      Show more fixtures ({items.length - visible} remaining)
+                    </button>
+                  </div>
+                )}
+              </section>
+            ) : (
+              <section className="panel">
+                <EmptyState title="No fixtures in this view">
+                  Try recent results or another league.
+                </EmptyState>
+              </section>
+            )}
+          </ResourceState>
+          <SourceNote data={resource.data} />
+        </>
+      )}
+    </>
   );
-};
-
-export default MatchesPage;
+}

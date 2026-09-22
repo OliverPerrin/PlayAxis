@@ -1,219 +1,375 @@
-import React, { useEffect, useState } from 'react';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
-import { CalendarIcon, MapPinIcon, UserGroupIcon, ArrowLeftIcon, StarIcon } from '@heroicons/react/24/outline';
-import { getEventById } from '../api';
-
-const normalizeEvent = (e, fallback) => {
-  if (!e && fallback) return fallback;
-  if (!e) return null;
-
-  const title = e.title || e?.name?.text || fallback?.title || 'Untitled Event';
-  const description = e.description || e?.description?.text || fallback?.description || '';
-  const startLocal = e?.start?.local || e?.start || e?.date || fallback?.start?.local || fallback?.date || null;
-  const venueName = e?.venue?.name || e?.location || e?.venue || fallback?.venue?.name || fallback?.location || 'Location TBA';
-  const isFree = typeof e?.is_free === 'boolean' ? e.is_free : (e?.price === 'Free' || fallback?.price === 'Free');
-  const price = isFree ? 'Free' : (e?.price || e?.ticket_price || fallback?.price || 'See site');
-  const participants = e?.participants || e?.attending_count || e?.yes_rsvp_count || fallback?.participants || 0;
-  const maxParticipants = e?.capacity || e?.maxParticipants || fallback?.maxParticipants || null;
-  const rating = e?.rating || fallback?.rating || 4.6;
-  const difficulty = e?.difficulty || fallback?.difficulty || 'All Levels';
-
-  return {
-    id: e?.id || e?.event_id || fallback?.id,
-    title,
-    description,
-    date: startLocal ? new Date(startLocal).toISOString() : null,
-    location: venueName,
-    participants,
-    maxParticipants,
-    price,
-    rating,
-    difficulty,
-    organizer: e?.organizer || e?.organization_id || fallback?.organizer || 'Organizer',
-    image: e?.image || fallback?.image || '🎯',
-  };
-};
-
-// Extract potential image URL(s) and clean description text
-const extractMediaFromDescription = (raw) => {
-  if (!raw || typeof raw !== 'string') return { imageUrl: null, text: '', links: [] };
-  const urlRegex = /(https?:\/\/[^\s)]+)(?=\s|$)/gim;
-  const urls = [...raw.matchAll(urlRegex)].map(m => m[1]);
-  let imageUrl = null;
-  for (const u of urls) {
-    if (/\.(png|jpe?g|webp|gif)(\?|$)/i.test(u) || /gstatic\.com\/images/i.test(u) || /encrypted-tbn0\.gstatic\.com/i.test(u)) {
-      imageUrl = u; break;
-    }
-  }
-  // Remove lines that are just a URL or gstatic thumbnail references
-  const cleaned = raw
-    .split(/\n+/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0 && !/^https?:\/\/\S+$/i.test(l) && !/encrypted-tbn0\.gstatic\.com/i.test(l))
-    .join('\n');
-  // Optionally shorten any lingering huge URLs inside text
-  const shortened = cleaned.replace(urlRegex, (m) => {
-    try {
-      const u = new URL(m);
-      let host = u.hostname.replace(/^www\./, '');
-      let path = u.pathname.replace(/\/$/, '');
-      if (path.length > 40) path = path.slice(0, 37) + '…';
-      return `${host}${path}`; // strip query for readability
-    } catch { return m; }
-  });
-  // Collect non-image links (excluding gstatic thumbnails)
-  const linkSet = urls.filter(u => u !== imageUrl && !/encrypted-tbn0\.gstatic\.com/i.test(u));
-  return { imageUrl, text: shortened, links: linkSet.slice(0, 5) };
-};
-
-const EventDetailPage = () => {
-  const navigate = useNavigate();
+import React, { useMemo, useState } from "react";
+import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
+import {
+  CalendarDaysIcon,
+  MapPinIcon,
+  ClockIcon,
+  ShareIcon,
+} from "@heroicons/react/24/outline";
+import { getEventById, rsvpSession, cancelSession } from "../api";
+import { useAuth } from "../contexts/AuthContext";
+import useResource from "../hooks/useResource";
+import { usePreferences } from "../contexts/PreferencesContext";
+import {
+  PageHeader,
+  Loading,
+  ErrorState,
+  SaveButton,
+  formatDate,
+  formatTime,
+  safeURL,
+  downloadFile,
+} from "../components/ui";
+import EventMap, { hasCoordinates } from "../components/events/EventMap";
+export function calendarFile(event) {
+  const escape = (text) =>
+    String(text || "")
+      .replace(/\\/g, "\\\\")
+      .replace(/\r?\n/g, "\\n")
+      .replace(/,/g, "\\,")
+      .replace(/;/g, "\\;");
+  if (!event.start) return null;
+  const date = new Date(event.start);
+  if (Number.isNaN(date.getTime())) return null;
+  const stamp = (d) =>
+    d
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}Z$/, "Z");
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//PlayAxis//Sporting Calendar//EN",
+    "BEGIN:VEVENT",
+    `UID:${escape(event.id)}@playaxis`,
+    `DTSTAMP:${stamp(new Date())}`,
+    `DTSTART:${stamp(date)}`,
+    `SUMMARY:${escape(event.name)}`,
+    `LOCATION:${escape([event.venue, event.city].filter(Boolean).join(", "))}`,
+    `DESCRIPTION:${escape(event.description || "Check the event source for current details.")}`,
+    ...(safeURL(event.url) ? [`URL:${safeURL(event.url)}`] : []),
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+  return lines
+    .map((line) => line.match(/.{1,70}/gu)?.join("\r\n ") || "")
+    .join("\r\n");
+}
+export default function EventDetailPage() {
   const { id } = useParams();
-  const { state } = useLocation();
-  const [event, setEvent] = useState(state?.event || null);
-  const [loading, setLoading] = useState(!state?.event);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let mounted = true;
-    if (!event) {
-      (async () => {
-        setLoading(true);
-        setError('');
-        try {
-          const data = await getEventById(id);
-          if (!mounted) return;
-          const normalized = normalizeEvent(data, state?.event);
-          setEvent(normalized);
-        } catch (e) {
-          setError('Unable to load event details.');
-        } finally {
-          if (mounted) setLoading(false);
-        }
-      })();
-    } else {
-      setEvent(prev => normalizeEvent(prev, prev));
-      setLoading(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const { saved, toggleSaved } = usePreferences();
+  const [feedback, setFeedback] = useState("");
+  const resource = useResource(`detail:${id}:${user?.id}`, () =>
+    getEventById(id),
+  );
+  const snapshot =
+    location.state?.event?.id === id
+      ? location.state.event
+      : saved.find((e) => e.id === id);
+  const event = resource.data || snapshot;
+  const center = useMemo(
+    () =>
+      hasCoordinates(event)
+        ? [Number(event.latitude), Number(event.longitude)]
+        : null,
+    [event],
+  );
+  const points = useMemo(() => (event ? [event] : []), [event]);
+  async function join() {
+    setBusy(true);
+    setFeedback("");
+    try {
+      await rsvpSession(event.session_id);
+      resource.reload();
+    } catch (e) {
+      setFeedback(e.message);
+    } finally {
+      setBusy(false);
     }
-    return () => { mounted = false; };
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (loading) return <div className="p-6 text-white">Loading event...</div>;
-
-  if (error || !event) {
-    return (
-      <div className="p-6">
-        <button onClick={() => navigate(-1)} className="text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-2 mb-4">
-          <ArrowLeftIcon className="w-5 h-5" /> Back
-        </button>
-        <div className="text-red-300">Event not found.</div>
-      </div>
-    );
   }
-
-  // Safe to compute directly (was previously useMemo, but removed to avoid conditional hook order issues)
-  const processed = extractMediaFromDescription(event?.description);
-  const heroImageUrl = (() => {
-    if (event?.image && /^https?:\/\//i.test(event.image)) return event.image;
-    if (processed.imageUrl) return processed.imageUrl;
-    return null;
-  })();
-
+  async function cancel() {
+    setBusy(true);
+    try {
+      await cancelSession(event.session_id);
+      if (saved.some((e) => e.id === event.id)) toggleSaved(event);
+      navigate("/local");
+    } catch (e) {
+      setFeedback(e.message);
+      setBusy(false);
+    }
+  }
+  const share = async () => {
+    try {
+      if (navigator.share)
+        await navigator.share({ title: event.name, url: window.location.href });
+      else {
+        await navigator.clipboard.writeText(window.location.href);
+        setFeedback("Event link copied.");
+      }
+    } catch (e) {
+      if (e.name !== "AbortError")
+        setFeedback("Copy the address from your browser to share this event.");
+    }
+  };
+  if (resource.errorStatus === 404 && id.startsWith("local-"))
+    return (
+      <section className="panel empty-state">
+        <h1>This session isn’t available.</h1>
+        <p>It may have been removed by its organiser.</p>
+        <Link className="button primary" to="/local">
+          Find another session
+        </Link>
+      </section>
+    );
+  if (!event)
+    return (
+      <>
+        <PageHeader title="Event details" />
+        <>
+          {resource.loading ? (
+            <Loading />
+          ) : (
+            <ErrorState
+              message={resource.error || "This event could not be found."}
+              retry={resource.reload}
+            />
+          )}
+        </>
+        <Link className="button secondary" to="/events">
+          Browse events
+        </Link>
+      </>
+    );
   return (
-    <div className="p-6">
-      <button onClick={() => navigate(-1)} className="text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-2 mb-6">
-        <ArrowLeftIcon className="w-5 h-5" /> Back
-      </button>
-
-      <div className="max-w-5xl mx-auto grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white/10 border border-white/20 rounded-2xl p-6">
-          <div className="flex items-center gap-4 mb-4">
-            {heroImageUrl ? (
-              <div className="w-32 h-32 rounded-xl overflow-hidden ring-1 ring-white/20 bg-black/30 flex items-center justify-center">
-                <img src={heroImageUrl} alt="Event" className="w-full h-full object-cover" loading="lazy" />
-              </div>
-            ) : (
-              <div className="text-6xl leading-none select-none" aria-hidden>{event.image || '🎯'}</div>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-3xl font-bold text-white break-words leading-tight">{event.title}</h1>
-              <div className="text-gray-300 text-sm mt-1 break-words">{event.organizer}</div>
+    <>
+      <Link
+        className="text-link"
+        to={
+          id.startsWith("local-") ||
+          id.startsWith("tm-") ||
+          id.startsWith("localweb-")
+            ? "/local"
+            : "/events"
+        }
+      >
+        All events
+      </Link>
+      <div style={{ height: 24 }} />
+      <PageHeader
+        eyebrow={event.league || event.sport}
+        title={event.name || event.title}
+      />
+      <div className="detail-layout">
+        <div className="page-stack">
+          {(resource.error || resource.data?.stale) && (
+            <div className="notice">
+              <p>
+                Showing previously loaded event details. Live updates are
+                unavailable. Check the event source before making plans.
+              </p>
+              <button className="text-button" onClick={resource.reload}>
+                Retry
+              </button>
             </div>
-          </div>
-
-          <div className="flex items-center gap-4 text-sm text-gray-300 mb-4">
-            <div className="flex items-center gap-1">
-              <CalendarIcon className="w-4 h-4" />
-              <span>{event.date ? new Date(event.date).toLocaleString() : 'Date TBA'}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <MapPinIcon className="w-4 h-4" />
-              <span>{event.location}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <UserGroupIcon className="w-4 h-4" />
-              <span>{event.participants}{event.maxParticipants ? `/${event.maxParticipants}` : ''}</span>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap break-words text-sm md:text-base">
-              {(processed.text && processed.text.trim()) || 'Event description coming soon.'}
+          )}
+          {safeURL(event.image) && (
+            <img
+              className="detail-visual panel"
+              src={safeURL(event.image)}
+              alt={event.name}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          )}
+          <section className="panel panel-pad">
+            <h2>About this event</h2>
+            <p
+              style={{ marginTop: 15, whiteSpace: "pre-wrap" }}
+              className="muted"
+            >
+              {event.description ||
+                `${event.name} is part of ${event.league || "the sporting calendar"}. Visit the event source for the latest schedule, venue information and admission details.`}
             </p>
-            {processed.links.length > 0 && (
-              <div className="mt-5">
-                <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Related Links</div>
-                <ul className="space-y-1">
-                  {processed.links.map(l => {
-                    let display = l;
-                    try { const u = new URL(l); display = u.hostname.replace(/^www\./,'') + u.pathname.slice(0,60); } catch {}
-                    if (display.length > 64) display = display.slice(0,61) + '…';
-                    return (
-                      <li key={l} className="text-sm">
-                        <a href={l} target="_blank" rel="noreferrer" className="text-cyan-300 hover:text-cyan-200 break-all">{display}</a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </div>
+            <p className="source-note">
+              Source: {event.source || "Public sports feed"}. Times are shown in
+              your local timezone. Event schedules can change.
+            </p>
+          </section>
+          {center && (
+            <section className="panel" style={{ height: 330 }}>
+              <EventMap center={center} points={points} selected={event} />
+            </section>
+          )}
         </div>
-
-        <div className="space-y-6">
-          <div className="bg-white/10 border border-white/20 rounded-2xl p-6">
-            <div className="text-white font-semibold mb-3">Quick Info</div>
-            <div className="space-y-2 text-gray-300 text-sm">
-              <div className="flex items-center justify-between">
-                <span>Difficulty</span>
-                <span className="text-white font-medium">{event.difficulty}</span>
+        <aside className="panel" style={{ alignSelf: "start" }}>
+          <div className="detail-facts">
+            <div className="detail-fact">
+              <CalendarDaysIcon />
+              <div>
+                <h3>
+                  {event.date_text ||
+                    formatDate(event.start, {
+                      weekday: "long",
+                      year: "numeric",
+                    })}
+                </h3>
+                <p>{formatTime(event.start)} · Local time</p>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Rating</span>
-                <div className="flex items-center gap-1 text-cyan-300">
-                  <StarIcon className="w-4 h-4" />
-                  <span className="text-white">{event.rating}</span>
+            </div>
+            <div className="detail-fact">
+              <MapPinIcon />
+              <div>
+                <h3>{event.venue || "Venue to be confirmed"}</h3>
+                <p>{[event.city, event.country].filter(Boolean).join(", ")}</p>
+              </div>
+            </div>
+            {event.status && (
+              <div className="detail-fact">
+                <ClockIcon />
+                <div>
+                  <h3>Event status</h3>
+                  <p>{event.status}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Price</span>
-                <span className="text-white font-medium">{event.price}</span>
+            )}
+            {event.session_id && (
+              <section className="session-rsvp">
+                <h3>
+                  {event.attendees} going · Hosted by {event.host}
+                </h3>
+                {event.club_id && (
+                  <Link className="text-link" to={`/clubs/${event.club_id}`}>
+                    View the group
+                  </Link>
+                )}
+                <div style={{ marginTop: 18 }}>
+                  {user && resource.data?.owned ? (
+                    <>
+                      <p className="small muted">
+                        You’re organising this session.
+                      </p>
+                      {confirmCancel ? (
+                        <div className="form-actions">
+                          <button
+                            className="button secondary danger"
+                            disabled={busy}
+                            onClick={cancel}
+                          >
+                            Confirm cancellation
+                          </button>
+                          <button
+                            className="text-button"
+                            onClick={() => setConfirmCancel(false)}
+                          >
+                            Keep session
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="text-button danger"
+                          style={{ marginTop: 12 }}
+                          onClick={() => setConfirmCancel(true)}
+                        >
+                          Cancel this session
+                        </button>
+                      )}
+                    </>
+                  ) : user ? (
+                    <button
+                      className="button primary"
+                      disabled={
+                        busy ||
+                        resource.loading ||
+                        !!resource.error ||
+                        !resource.data ||
+                        new Date(event.start) < new Date()
+                      }
+                      onClick={join}
+                    >
+                      {busy
+                        ? "Updating…"
+                        : resource.data?.joined
+                          ? "Leave this session"
+                          : "Join this session"}
+                    </button>
+                  ) : (
+                    <Link
+                      className="button primary"
+                      to={`/auth?next=${encodeURIComponent("/events/" + id)}`}
+                    >
+                      Sign in to join
+                    </Link>
+                  )}
+                </div>
+                {user && resource.data?.joined && (
+                  <p className="source-note">
+                    This session appears in your saved plans.
+                  </p>
+                )}
+              </section>
+            )}
+            {event.price && (
+              <div className="detail-fact">
+                <div>
+                  <h3>Listed admission</h3>
+                  <p>{event.price}</p>
+                </div>
               </div>
-            </div>
-
-            <button className="w-full mt-4 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg">
-              {event.maxParticipants && event.participants >= event.maxParticipants ? 'Join Waitlist' : 'Get Ticket'}
+            )}
+            {safeURL(event.url) && (
+              <a
+                className="button primary"
+                href={safeURL(event.url)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Visit event source
+              </a>
+            )}
+            {center && (
+              <a
+                className="button secondary"
+                href={`https://www.google.com/maps/dir/?api=1&destination=${center[0]},${center[1]}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Get directions
+              </a>
+            )}
+            <SaveButton event={event} />
+            <button
+              className="button secondary"
+              disabled={!calendarFile(event)}
+              onClick={() => {
+                const content = calendarFile(event);
+                if (content)
+                  downloadFile(
+                    "playaxis-event.ics",
+                    content,
+                    "text/calendar;charset=utf-8",
+                  );
+              }}
+            >
+              Add to calendar
             </button>
+            <button className="button secondary" onClick={share}>
+              <ShareIcon />
+              Share event
+            </button>
+            {feedback && (
+              <p role="status" className="inline-feedback">
+                {feedback}
+              </p>
+            )}
           </div>
-
-          <div className="bg-white/10 border border-white/20 rounded-2xl p-6">
-            <div className="text-white font-semibold mb-3">Organizer</div>
-            <div className="text-gray-300">{event.organizer}</div>
-          </div>
-        </div>
+        </aside>
       </div>
-    </div>
+    </>
   );
-};
-
-export default EventDetailPage;
+}

@@ -1,63 +1,123 @@
-from __future__ import annotations
+"""Server-side Twitch app authentication and live category browsing."""
+
+import asyncio
+from datetime import datetime, timezone
 import httpx
+from fastapi import HTTPException
 from app.core.config import settings
 from app.core.cache import cache
-from app.schemas.streams import StreamsResponse, Stream
 
-TWITCH_ID = settings.TWITCH_CLIENT_ID
-TWITCH_SECRET = settings.TWITCH_CLIENT_SECRET
-TWITCH_BASE = "https://api.twitch.tv/helix"
-TOKEN_CACHE_KEY = "twitch:app_token"
+_lock = asyncio.Lock()
 
-async def _fetch_app_token():
-    if not TWITCH_ID or not TWITCH_SECRET:
-        raise RuntimeError("Twitch credentials not configured")
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.post(
-            "https://id.twitch.tv/oauth2/token",
-            params={
-                "client_id": TWITCH_ID,
-                "client_secret": TWITCH_SECRET,
-                "grant_type": "client_credentials"
-            }
-        )
-        r.raise_for_status()
-        data = r.json()
-        return data["access_token"], int(data.get("expires_in", 3600))
 
-async def get_app_token() -> str:
-    existing = await cache.get(TOKEN_CACHE_KEY)
-    if existing:
-        return existing
-    token, ttl = await _fetch_app_token()
-    await cache.set(TOKEN_CACHE_KEY, token, max(ttl - 60, 300))
-    return token
+async def get_app_token():
+    token = await cache.get("twitch:app_token")
+    if token:
+        return token
+    async with _lock:
+        token = await cache.get("twitch:app_token")
+        if token:
+            return token
+        if not settings.TWITCH_CLIENT_ID or not settings.TWITCH_CLIENT_SECRET:
+            raise HTTPException(
+                503, "Twitch is not connected. Live chess remains available."
+            )
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.post(
+                    "https://id.twitch.tv/oauth2/token",
+                    data={
+                        "client_id": settings.TWITCH_CLIENT_ID,
+                        "client_secret": settings.TWITCH_CLIENT_SECRET,
+                        "grant_type": "client_credentials",
+                    },
+                )
+            response.raise_for_status()
+            payload = response.json()
+            token = payload["access_token"]
+            await cache.set(
+                "twitch:app_token",
+                token,
+                max(60, int(payload.get("expires_in", 3600)) - 60),
+            )
+            return token
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            raise HTTPException(
+                503, "Twitch could not connect. Try again shortly or watch live chess."
+            ) from exc
 
-async def fetch_streams(game_id: str | None = None, first: int = 10) -> StreamsResponse:
+
+async def _get(path, params, ttl=120):
+    key = f"twitch:{path}:{params}"
+    data = await cache.get(key)
+    if data is not None:
+        return data
     token = await get_app_token()
-    headers = {
-        "Client-ID": TWITCH_ID,
-        "Authorization": f"Bearer {token}"
-    }
-    params = {"first": min(first, 20)}
-    if game_id:
-        params["game_id"] = game_id
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(f"{TWITCH_BASE}/streams", headers=headers, params=params)
-        r.raise_for_status()
-        payload = r.json()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(
+                "https://api.twitch.tv/helix/" + path,
+                params=params,
+                headers={
+                    "Client-ID": settings.TWITCH_CLIENT_ID,
+                    "Authorization": "Bearer " + token,
+                },
+            )
+        response.raise_for_status()
+        data = response.json()
+        await cache.set(key, data, ttl)
+        return data
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(
+            503, "Live broadcasts are temporarily unavailable. Please retry."
+        ) from exc
 
-    streams = [
-        Stream(
-            id=item.get("id"),
-            user_name=item.get("user_name"),
-            title=item.get("title"),
-            viewer_count=item.get("viewer_count", 0),
-            started_at=item.get("started_at"),
-            thumbnail_url=item.get("thumbnail_url"),
-            language=item.get("language"),
-            game_id=item.get("game_id"),
+
+CATEGORIES = {
+    "sports": ["Sports"],
+    "esports": ["Counter-Strike", "League of Legends", "VALORANT"],
+    "counter-strike": ["Counter-Strike"],
+    "league-of-legends": ["League of Legends"],
+    "valorant": ["VALORANT"],
+}
+
+
+async def fetch_streams(game_id=None, first=12, category="sports"):
+    ids = [game_id] if game_id else []
+    if not ids:
+        if category not in CATEGORIES:
+            raise HTTPException(422, "Choose a supported broadcast category")
+        games = await _get(
+            "games", [("name", name) for name in CATEGORIES[category]], 86400
         )
-        for item in payload.get("data", [])
+        ids = [r["id"] for r in games.get("data", [])]
+    if not ids:
+        return {"source": "Twitch", "data": [], "total": 0}
+    raw = await _get(
+        "streams", [("first", min(first, 20))] + [("game_id", id) for id in ids]
+    )
+    items = [
+        {
+            "id": r["id"],
+            "user_name": r["user_name"],
+            "user_login": r["user_login"],
+            "title": r["title"],
+            "viewer_count": r["viewer_count"],
+            "started_at": r["started_at"],
+            "thumbnail_url": r.get("thumbnail_url", "")
+            .replace("{width}", "640")
+            .replace("{height}", "360"),
+            "language": r.get("language"),
+            "game_id": r["game_id"],
+            "game_name": r.get("game_name"),
+            "url": "https://www.twitch.tv/" + r["user_login"],
+        }
+        for r in raw.get("data", [])
     ]
-    return StreamsResponse(data=streams, total=len(streams))
+    return {
+        "source": "Twitch",
+        "category": category,
+        "data": items,
+        "total": len(items),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }

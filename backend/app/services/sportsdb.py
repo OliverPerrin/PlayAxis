@@ -55,6 +55,7 @@ SPORT_ALIAS: Dict[str, Tuple[str, Optional[str]]] = {
 
 _dynamic_alias_populated = False
 
+
 async def _ensure_dynamic_aliases():
     """Populate SPORT_ALIAS with every sport from TheSportsDB once per process.
 
@@ -67,22 +68,26 @@ async def _ensure_dynamic_aliases():
     try:
         sports = await list_all_sports()
         for s in sports:
-            name = (s.get('strSport') or '').strip()
+            name = (s.get("strSport") or "").strip()
             if not name:
                 continue
-            key = name.lower().replace(' ', '_')
+            key = name.lower().replace(" ", "_")
             if key not in SPORT_ALIAS:
                 SPORT_ALIAS[key] = (name, None)
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed populating dynamic sport aliases: %s", e)
     _dynamic_alias_populated = True
 
+
 def _api_key() -> str:
     # Optionally add a new setting later (THESPORTSDB_API_KEY); fallback to rapid key if reused
-    key = getattr(settings, 'THESPORTSDB_API_KEY', None) or settings.X_RapidAPI_KEY or API_KEY_FALLBACK
+    key = settings.THESPORTSDB_API_KEY or API_KEY_FALLBACK
     return key or API_KEY_FALLBACK
 
-async def _get_json(path: str, params: Optional[Dict[str, Any]] = None, ttl: int = TTL_SHORT) -> Any:
+
+async def _get_json(
+    path: str, params: Optional[Dict[str, Any]] = None, ttl: int = TTL_SHORT
+) -> Any:
     key = f"sportsdb:{path}:{params}".lower()
     cached = await cache.get(key)
     if cached is not None:
@@ -97,7 +102,9 @@ async def _get_json(path: str, params: Optional[Dict[str, Any]] = None, ttl: int
                 await cache.set(key, None, 30)
                 return None
             if r.status_code != 200:
-                logger.error("TheSportsDB error status=%s body=%s", r.status_code, r.text[:200])
+                logger.error(
+                    "TheSportsDB error status=%s body=%s", r.status_code, r.text[:200]
+                )
                 await cache.set(key, None, 30)
                 return None
             data = r.json()
@@ -108,48 +115,59 @@ async def _get_json(path: str, params: Optional[Dict[str, Any]] = None, ttl: int
         await cache.set(key, None, 30)
         return None
 
+
 def _norm_event(ev: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(ev, dict):
         return {}
     return {
-        "id": ev.get('idEvent') or ev.get('id'),
-        "sport": ev.get('strSport'),
-        "league": ev.get('strLeague'),
-        "season": ev.get('strSeason'),
-        "round": ev.get('intRound'),
-        "date": ev.get('dateEvent') or ev.get('dateEventLocal'),
-        "time": ev.get('strTime') or ev.get('strTimeLocal'),
-        "timestamp": ev.get('strTimestamp'),
-        "home_team": ev.get('strHomeTeam'),
-        "away_team": ev.get('strAwayTeam'),
-        "home_score": ev.get('intHomeScore'),
-        "away_score": ev.get('intAwayScore'),
-        "venue": ev.get('strVenue'),
-        "city": ev.get('strCity'),
-        "country": ev.get('strCountry'),
-        "tv": ev.get('strTVStation'),
-        "thumbnail": ev.get('strThumb') or ev.get('strPoster'),
-        "video": ev.get('strVideo'),
-        "status": ev.get('strStatus'),
+        "id": ev.get("idEvent") or ev.get("id"),
+        "sport": ev.get("strSport"),
+        "league": ev.get("strLeague"),
+        "season": ev.get("strSeason"),
+        "round": ev.get("intRound"),
+        "date": ev.get("dateEvent") or ev.get("dateEventLocal"),
+        "time": ev.get("strTime") or ev.get("strTimeLocal"),
+        "timestamp": ev.get("strTimestamp"),
+        "home_team": ev.get("strHomeTeam"),
+        "away_team": ev.get("strAwayTeam"),
+        "home_score": ev.get("intHomeScore"),
+        "away_score": ev.get("intAwayScore"),
+        "venue": ev.get("strVenue"),
+        "city": ev.get("strCity"),
+        "country": ev.get("strCountry"),
+        "tv": ev.get("strTVStation"),
+        "thumbnail": ev.get("strThumb") or ev.get("strPoster"),
+        "video": ev.get("strVideo"),
+        "status": ev.get("strStatus"),
     }
 
+
 async def list_all_sports() -> List[Dict[str, Any]]:
-    data = await _get_json('all_sports.php', ttl=TTL_LONG)
-    sports = data.get('sports') if isinstance(data, dict) else None
+    data = await _get_json("all_sports.php", ttl=TTL_LONG)
+    sports = data.get("sports") if isinstance(data, dict) else None
     return sports or []
+
 
 async def get_next_events_for_league(league_id: str) -> List[Dict[str, Any]]:
     # eventsnextleague.php?id=4328
-    data = await _get_json('eventsnextleague.php', params={"id": league_id}, ttl=TTL_SHORT)
-    events = data.get('events') if isinstance(data, dict) else None
+    data = await _get_json(
+        "eventsnextleague.php", params={"id": league_id}, ttl=TTL_SHORT
+    )
+    events = data.get("events") if isinstance(data, dict) else None
     return [_norm_event(e) for e in events or []]
+
 
 async def get_previous_events_for_league(league_id: str) -> List[Dict[str, Any]]:
-    data = await _get_json('eventspastleague.php', params={"id": league_id}, ttl=TTL_SHORT)
-    events = data.get('events') if isinstance(data, dict) else None
+    data = await _get_json(
+        "eventspastleague.php", params={"id": league_id}, ttl=TTL_SHORT
+    )
+    events = data.get("events") if isinstance(data, dict) else None
     return [_norm_event(e) for e in events or []]
 
-async def get_all_events_for_league_season(league_id: str, season: Optional[str] = None) -> List[Dict[str, Any]]:
+
+async def get_all_events_for_league_season(
+    league_id: str, season: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """Fetch full season schedule as fallback when next/past endpoints return too few events.
 
     Endpoint: eventsseason.php?id=LEAGUE_ID&s=SEASON  (season optional—API returns latest if omitted)
@@ -157,54 +175,62 @@ async def get_all_events_for_league_season(league_id: str, season: Optional[str]
     params = {"id": league_id}
     if season:
         params["s"] = season
-    data = await _get_json('eventsseason.php', params=params, ttl=TTL_SHORT)
-    events = data.get('events') if isinstance(data, dict) else None
+    data = await _get_json("eventsseason.php", params=params, ttl=TTL_SHORT)
+    events = data.get("events") if isinstance(data, dict) else None
     if not events:
         return []
     return [_norm_event(e) for e in events]
 
+
 async def get_team_next(team_id: str) -> List[Dict[str, Any]]:
-    data = await _get_json('eventsnext.php', params={"id": team_id}, ttl=TTL_SHORT)
-    events = data.get('events') if isinstance(data, dict) else None
+    data = await _get_json("eventsnext.php", params={"id": team_id}, ttl=TTL_SHORT)
+    events = data.get("events") if isinstance(data, dict) else None
     return [_norm_event(e) for e in events or []]
 
+
 async def search_team(name: str) -> List[Dict[str, Any]]:
-    data = await _get_json('searchteams.php', params={"t": name}, ttl=TTL_LONG)
-    teams = data.get('teams') if isinstance(data, dict) else None
+    data = await _get_json("searchteams.php", params={"t": name}, ttl=TTL_LONG)
+    teams = data.get("teams") if isinstance(data, dict) else None
     return teams or []
+
 
 LEAGUE_IDS = {
     # Common leagues (can expand)
-    'EPL': '4328',
-    'NBA': '4387',  # NBA Basketball
-    'NFL': '4391',
-    'NHL': '4380',
-    'MLB': '4424',
+    "EPL": "4328",
+    "NBA": "4387",  # NBA Basketball
+    "NFL": "4391",
+    "NHL": "4380",
+    "MLB": "4424",
 }
 
-async def get_league_table(league_id: str, season: Optional[str] = None) -> List[Dict[str, Any]]:
+
+async def get_league_table(
+    league_id: str, season: Optional[str] = None
+) -> List[Dict[str, Any]]:
     # TheSportsDB: lookuptable.php?l=4328&s=2023-2024 (season optional, some sports just latest)
     params = {"l": league_id}
     if season:
         params["s"] = season
-    data = await _get_json('lookuptable.php', params=params, ttl=TTL_SHORT)
-    table = data.get('table') if isinstance(data, dict) else None
+    data = await _get_json("lookuptable.php", params=params, ttl=TTL_SHORT)
+    table = data.get("table") if isinstance(data, dict) else None
     if table:
         return table
     # Fallback: try previous season for leagues that might not have rollover yet (NBA style 2024-2025 -> 2023-2024)
     if not season:
         # attempt to derive a recent two-year span season format
         from datetime import datetime
+
         yr = datetime.utcnow().year
         # Try current-season style "{yr}-{yr+1}" and previous one
         guesses = [f"{yr-1}-{yr}", f"{yr-2}-{yr-1}"]
         for guess in guesses:
             params2 = {"l": league_id, "s": guess}
-            data2 = await _get_json('lookuptable.php', params=params2, ttl=TTL_SHORT)
-            table2 = data2.get('table') if isinstance(data2, dict) else None
+            data2 = await _get_json("lookuptable.php", params=params2, ttl=TTL_SHORT)
+            table2 = data2.get("table") if isinstance(data2, dict) else None
             if table2:
                 return table2
     return []
+
 
 def _sport_to_league_id(sport_key: str) -> Optional[str]:
     alias = SPORT_ALIAS.get(sport_key.lower())
@@ -215,14 +241,16 @@ def _sport_to_league_id(sport_key: str) -> Optional[str]:
         return None
     return LEAGUE_IDS.get(league_name.upper())
 
+
 import os
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.crud.workout import get_standings_cache, upsert_standings_cache
 
-STANDINGS_CACHE_TTL_MIN = int(os.getenv('STANDINGS_CACHE_TTL_MIN', '30'))
-FORCE_REFRESH_STANDINGS = os.getenv('FORCE_REFRESH_STANDINGS') == '1'
+STANDINGS_CACHE_TTL_MIN = int(os.getenv("STANDINGS_CACHE_TTL_MIN", "30"))
+FORCE_REFRESH_STANDINGS = os.getenv("FORCE_REFRESH_STANDINGS") == "1"
+
 
 async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
     """Return a multi-table standings structure differing by sport.
@@ -251,7 +279,7 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
         refreshed = cached_obj.refreshed_at if cached_obj.refreshed_at else now
         if (now - refreshed) < timedelta(minutes=STANDINGS_CACHE_TTL_MIN):
             data = cached_obj.data
-            if isinstance(data, dict) and data.get('tables') is not None:
+            if isinstance(data, dict) and data.get("tables") is not None:
                 return data
     skey = sport_key.lower()
 
@@ -278,51 +306,57 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                 await cache.set(cache_key, None, 60)
                 return None
 
-        drivers_data, constructors_data, last_race_data, qual_data = await asyncio.gather(
-            _ergast('current/driverStandings.json'),
-            _ergast('current/constructorStandings.json'),
-            _ergast('current/last/results.json'),
-            _ergast('current/last/qualifying.json'),
+        drivers_data, constructors_data, last_race_data, qual_data = (
+            await asyncio.gather(
+                _ergast("current/driverStandings.json"),
+                _ergast("current/constructorStandings.json"),
+                _ergast("current/last/results.json"),
+                _ergast("current/last/qualifying.json"),
+            )
         )
 
         def _drivers_rows():
             try:
-                lists = drivers_data['MRData']['StandingsTable']['StandingsLists']
+                lists = drivers_data["MRData"]["StandingsTable"]["StandingsLists"]
                 if not lists:
                     return []
-                standings = lists[0]['DriverStandings']
+                standings = lists[0]["DriverStandings"]
                 rows = []
                 for d in standings:
-                    drv = d.get('Driver', {})
-                    cons = d.get('Constructors', [{}])[0]
-                    rows.append({
-                        'Position': d.get('position'),
-                        'Driver': f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
-                        'Team': cons.get('name'),
-                        'Points': d.get('points'),
-                        'Wins': d.get('wins'),
-                        'Podiums': None,  # Ergast does not directly supply podium count
-                    })
+                    drv = d.get("Driver", {})
+                    cons = d.get("Constructors", [{}])[0]
+                    rows.append(
+                        {
+                            "Position": d.get("position"),
+                            "Driver": f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
+                            "Team": cons.get("name"),
+                            "Points": d.get("points"),
+                            "Wins": d.get("wins"),
+                            "Podiums": None,  # Ergast does not directly supply podium count
+                        }
+                    )
                 return rows
             except Exception:  # noqa: BLE001
                 return []
 
         def _constructors_rows():
             try:
-                lists = constructors_data['MRData']['StandingsTable']['StandingsLists']
+                lists = constructors_data["MRData"]["StandingsTable"]["StandingsLists"]
                 if not lists:
                     return []
-                standings = lists[0]['ConstructorStandings']
+                standings = lists[0]["ConstructorStandings"]
                 rows = []
                 for c in standings:
-                    cons = c.get('Constructor', {})
-                    rows.append({
-                        'Position': c.get('position'),
-                        'Constructor': cons.get('name'),
-                        'Points': c.get('points'),
-                        'Wins': c.get('wins'),
-                        'Podiums': None,
-                    })
+                    cons = c.get("Constructor", {})
+                    rows.append(
+                        {
+                            "Position": c.get("position"),
+                            "Constructor": cons.get("name"),
+                            "Points": c.get("points"),
+                            "Wins": c.get("wins"),
+                            "Podiums": None,
+                        }
+                    )
                 return rows
             except Exception:  # noqa: BLE001
                 return []
@@ -330,70 +364,74 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
         def _qualifying_rows():
             try:
                 # Qualifying last race
-                races = qual_data['MRData']['RaceTable']['Races']
+                races = qual_data["MRData"]["RaceTable"]["Races"]
                 if not races:
                     return []
-                qual_results = races[0].get('QualifyingResults', [])
+                qual_results = races[0].get("QualifyingResults", [])
                 rows = []
                 for q in qual_results:
-                    drv = q.get('Driver', {})
-                    rows.append({
-                        'Position': q.get('position'),
-                        'Driver': f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
-                        'Q3 Time': q.get('Q3') or q.get('Q2') or q.get('Q1'),
-                    })
+                    drv = q.get("Driver", {})
+                    rows.append(
+                        {
+                            "Position": q.get("position"),
+                            "Driver": f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
+                            "Q3 Time": q.get("Q3") or q.get("Q2") or q.get("Q1"),
+                        }
+                    )
                 return rows
             except Exception:  # noqa: BLE001
                 return []
 
         def _race_rows():
             try:
-                races = last_race_data['MRData']['RaceTable']['Races']
+                races = last_race_data["MRData"]["RaceTable"]["Races"]
                 if not races:
                     return []
-                results = races[0].get('Results', [])
+                results = races[0].get("Results", [])
                 rows = []
                 for r in results:
-                    drv = r.get('Driver', {})
-                    status = r.get('status')
-                    time_obj = r.get('Time', {})
-                    rows.append({
-                        'Position': r.get('position'),
-                        'Driver': f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
-                        'Race Time': time_obj.get('time'),
-                        'Status': status,
-                    })
+                    drv = r.get("Driver", {})
+                    status = r.get("status")
+                    time_obj = r.get("Time", {})
+                    rows.append(
+                        {
+                            "Position": r.get("position"),
+                            "Driver": f"{drv.get('givenName','')} {drv.get('familyName','')}".strip(),
+                            "Race Time": time_obj.get("time"),
+                            "Status": status,
+                        }
+                    )
                 return rows
             except Exception:  # noqa: BLE001
                 return []
 
         tables = [
             {
-                'kind': 'drivers',
-                'name': 'Drivers Championship',
-                'columns': ['Position', 'Driver', 'Team', 'Points', 'Wins', 'Podiums'],
-                'rows': _drivers_rows(),
+                "kind": "drivers",
+                "name": "Drivers Championship",
+                "columns": ["Position", "Driver", "Team", "Points", "Wins", "Podiums"],
+                "rows": _drivers_rows(),
             },
             {
-                'kind': 'constructors',
-                'name': 'Constructors Championship',
-                'columns': ['Position', 'Constructor', 'Points', 'Wins', 'Podiums'],
-                'rows': _constructors_rows(),
+                "kind": "constructors",
+                "name": "Constructors Championship",
+                "columns": ["Position", "Constructor", "Points", "Wins", "Podiums"],
+                "rows": _constructors_rows(),
             },
             {
-                'kind': 'qualifying',
-                'name': 'Latest Qualifying',
-                'columns': ['Position', 'Driver', 'Q3 Time'],
-                'rows': _qualifying_rows(),
+                "kind": "qualifying",
+                "name": "Latest Qualifying",
+                "columns": ["Position", "Driver", "Q3 Time"],
+                "rows": _qualifying_rows(),
             },
             {
-                'kind': 'race',
-                'name': 'Latest Grand Prix Result',
-                'columns': ['Position', 'Driver', 'Race Time', 'Status'],
-                'rows': _race_rows(),
+                "kind": "race",
+                "name": "Latest Grand Prix Result",
+                "columns": ["Position", "Driver", "Race Time", "Status"],
+                "rows": _race_rows(),
             },
         ]
-        result = {'sport': sport_key, 'league_id': None, 'tables': tables}
+        result = {"sport": sport_key, "league_id": None, "tables": tables}
         if db:
             try:
                 upsert_standings_cache(db, sport_key, result)
@@ -425,72 +463,149 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
 
     if skey in {"tennis"}:
         atp = await get_tennis_rankings(limit=50)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "tennis_atp", "name": "ATP Singles Rankings (Top 50)", "columns": ["Rank", "Player", "Country", "Points"], "rows": atp}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "tennis_atp",
+                    "name": "ATP Singles Rankings (Top 50)",
+                    "columns": ["Rank", "Player", "Country", "Points"],
+                    "rows": atp,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     if skey in {"golf"}:
         owgr = await get_golf_rankings(limit=50)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "golf_owgr", "name": "Official World Golf Ranking (Top 50)", "columns": ["Rank", "Player", "Country", "Points"], "rows": owgr}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "golf_owgr",
+                    "name": "Official World Golf Ranking (Top 50)",
+                    "columns": ["Rank", "Player", "Country", "Points"],
+                    "rows": owgr,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     if skey in {"cricket"}:
         odi = await get_cricket_rankings(limit=30)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "cricket_odi", "name": "ICC Men's ODI Team Rankings", "columns": ["Rank", "Team", "Matches", "Rating"], "rows": odi}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "cricket_odi",
+                    "name": "ICC Men's ODI Team Rankings",
+                    "columns": ["Rank", "Team", "Matches", "Rating"],
+                    "rows": odi,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     if skey in {"rugby"}:
         rw = await get_rugby_rankings(limit=30)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "rugby_world", "name": "World Rugby Rankings", "columns": ["Rank", "Team", "Points"], "rows": rw}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "rugby_world",
+                    "name": "World Rugby Rankings",
+                    "columns": ["Rank", "Team", "Points"],
+                    "rows": rw,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     if skey in {"cycling"}:
         uci = await get_cycling_rankings(limit=50)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "cycling_uci", "name": "UCI World Ranking Riders", "columns": ["Rank", "Rider", "Team", "Points"], "rows": uci}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "cycling_uci",
+                    "name": "UCI World Ranking Riders",
+                    "columns": ["Rank", "Rider", "Team", "Points"],
+                    "rows": uci,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     if skey in {"running", "athletics"}:
         recs = await get_running_records(limit=20)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "running_records", "name": "Selected Track World Records (Men)", "columns": ["Event", "Performance", "Athlete", "Nation"], "rows": recs}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "running_records",
+                    "name": "Selected Track World Records (Men)",
+                    "columns": ["Event", "Performance", "Athlete", "Nation"],
+                    "rows": recs,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     if skey in {"esports", "e-sports"}:
         ers = await get_esports_rankings(limit=25)
-        result = {"sport": sport_key, "league_id": None, "tables": [
-            {"kind": "esports_earnings", "name": "Highest Earning Esports Players", "columns": ["Rank", "Player", "Country", "Earnings"], "rows": ers}
-        ]}
+        result = {
+            "sport": sport_key,
+            "league_id": None,
+            "tables": [
+                {
+                    "kind": "esports_earnings",
+                    "name": "Highest Earning Esports Players",
+                    "columns": ["Rank", "Player", "Country", "Earnings"],
+                    "rows": ers,
+                }
+            ],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     # Soccer (league style) – attempt league table
@@ -500,21 +615,30 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
         try:
             raw = await get_league_table(league_id)
             for row in raw:
-                standings_rows.append({
-                    "Rank": row.get('intRank'),
-                    "Team": row.get('strTeam'),
-                    "Played": row.get('intPlayed') or row.get('intPlayedOverall'),
-                    "Win": row.get('intWin') or row.get('intWins'),
-                    "Draw": row.get('intDraw') or row.get('intTies'),
-                    "Loss": row.get('intLoss') or row.get('intLosses'),
-                    "GF": row.get('intGoalsFor') or row.get('intPointsFor'),
-                    "GA": row.get('intGoalsAgainst') or row.get('intPointsAgainst'),
-                    "GD": (
-                        (row.get('intGoalsFor') or 0) - (row.get('intGoalsAgainst') or 0)
-                        if (row.get('intGoalsFor') is not None and row.get('intGoalsAgainst') is not None) else None
-                    ),
-                    "Pts": row.get('intPoints') or row.get('points') or row.get('intWin'),
-                })
+                standings_rows.append(
+                    {
+                        "Rank": row.get("intRank"),
+                        "Team": row.get("strTeam"),
+                        "Played": row.get("intPlayed") or row.get("intPlayedOverall"),
+                        "Win": row.get("intWin") or row.get("intWins"),
+                        "Draw": row.get("intDraw") or row.get("intTies"),
+                        "Loss": row.get("intLoss") or row.get("intLosses"),
+                        "GF": row.get("intGoalsFor") or row.get("intPointsFor"),
+                        "GA": row.get("intGoalsAgainst") or row.get("intPointsAgainst"),
+                        "GD": (
+                            (row.get("intGoalsFor") or 0)
+                            - (row.get("intGoalsAgainst") or 0)
+                            if (
+                                row.get("intGoalsFor") is not None
+                                and row.get("intGoalsAgainst") is not None
+                            )
+                            else None
+                        ),
+                        "Pts": row.get("intPoints")
+                        or row.get("points")
+                        or row.get("intWin"),
+                    }
+                )
         except Exception as e:  # noqa: BLE001
             logger.warning("League standings fetch fail league=%s err=%s", league_id, e)
         # If no standings rows and sport is a US major league, attempt fallback wiki scrapers
@@ -538,16 +662,35 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
                     if nhl_rows:
                         standings_rows = nhl_rows
             except Exception as e:  # noqa: BLE001
-                logger.warning("Fallback wiki standings failed sport=%s err=%s", skey_low, e)
+                logger.warning(
+                    "Fallback wiki standings failed sport=%s err=%s", skey_low, e
+                )
         league_table = {
             "kind": "league",
             "name": (
-                "League Standings" if standings_rows and 'Played' in (standings_rows[0].keys()) else
-                "Standings (Fallback)" if standings_rows else "Standings"
+                "League Standings"
+                if standings_rows and "Played" in (standings_rows[0].keys())
+                else "Standings (Fallback)" if standings_rows else "Standings"
             ),
             "columns": (
-                ["Rank", "Team", "Played", "Win", "Draw", "Loss", "GF", "GA", "GD", "Pts"]
-                if standings_rows and 'Played' in (standings_rows[0].keys()) else list(standings_rows[0].keys()) if standings_rows else ["Rank", "Team", "Pts"]
+                [
+                    "Rank",
+                    "Team",
+                    "Played",
+                    "Win",
+                    "Draw",
+                    "Loss",
+                    "GF",
+                    "GA",
+                    "GD",
+                    "Pts",
+                ]
+                if standings_rows and "Played" in (standings_rows[0].keys())
+                else (
+                    list(standings_rows[0].keys())
+                    if standings_rows
+                    else ["Rank", "Team", "Pts"]
+                )
             ),
             "rows": standings_rows,
         }
@@ -573,18 +716,27 @@ async def get_standings_for_sport(sport_key: str) -> Dict[str, Any]:
             "columns": ["Rank", "Team", "Points"],
             "rows": fifa_rows,
         }
-        result = {"sport": sport_key, "league_id": league_id, "tables": [league_table, players_table, world_rankings_table]}
+        result = {
+            "sport": sport_key,
+            "league_id": league_id,
+            "tables": [league_table, players_table, world_rankings_table],
+        }
         if db:
-            try: upsert_standings_cache(db, sport_key, result)
-            except Exception: pass
+            try:
+                upsert_standings_cache(db, sport_key, result)
+            except Exception:
+                pass
         return result
 
     # Fallback empty response for unsupported mapping
     result = {"sport": sport_key, "league_id": None, "tables": []}
     if db:
-        try: upsert_standings_cache(db, sport_key, result)
-        except Exception: pass
+        try:
+            upsert_standings_cache(db, sport_key, result)
+        except Exception:
+            pass
     return result
+
 
 async def unified_events(sport_key: str) -> Dict[str, Any]:
     """Return combined snapshot: upcoming + recent for a mapped league if available."""
@@ -592,6 +744,7 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
 
     # Special handling for F1 events using Ergast (avoid mixed league aggregation)
     if skey in {"f1", "formula1", "formula-1"}:
+
         async def _ergast(path: str) -> Optional[Dict[str, Any]]:
             url = f"http://ergast.com/api/f1/{path}"
             cache_key = f"ergast:{path}"
@@ -611,49 +764,60 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
                 logger.warning("Ergast schedule fail err=%s", e)
                 await cache.set(cache_key, None, 120)
                 return None
-        sched = await _ergast('current.json')
+
+        sched = await _ergast("current.json")
         races = []
         try:
-            races = sched['MRData']['RaceTable']['Races'] if sched else []
+            races = sched["MRData"]["RaceTable"]["Races"] if sched else []
         except Exception:  # noqa: BLE001
             races = []
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         upcoming = []
         recent = []
         for r in races:
-            date_str = r.get('date')
-            time_str = r.get('time') or '00:00:00Z'
+            date_str = r.get("date")
+            time_str = r.get("time") or "00:00:00Z"
             try:
-                dt = datetime.fromisoformat((date_str + 'T' + time_str.replace('Z','+00:00')))  # naive parse
+                dt = datetime.fromisoformat(
+                    (date_str + "T" + time_str.replace("Z", "+00:00"))
+                )  # naive parse
             except Exception:  # noqa: BLE001
                 dt = None
-            circuit = (r.get('Circuit') or {}).get('circuitName')
-            country = (r.get('Circuit') or {}).get('Location', {}).get('country')
+            circuit = (r.get("Circuit") or {}).get("circuitName")
+            country = (r.get("Circuit") or {}).get("Location", {}).get("country")
             base_event = {
-                'id': r.get('raceName'),
-                'sport': 'Motorsport',
-                'league': 'F1',
-                'season': r.get('season'),
-                'date': date_str,
-                'time': time_str if time_str != '00:00:00Z' else None,
-                'home_team': r.get('raceName'),
-                'away_team': country,
-                'venue': circuit,
-                'city': (r.get('Circuit') or {}).get('Location', {}).get('locality'),
-                'country': country,
-                'status': None,
+                "id": r.get("raceName"),
+                "sport": "Motorsport",
+                "league": "F1",
+                "season": r.get("season"),
+                "date": date_str,
+                "time": time_str if time_str != "00:00:00Z" else None,
+                "home_team": r.get("raceName"),
+                "away_team": country,
+                "venue": circuit,
+                "city": (r.get("Circuit") or {}).get("Location", {}).get("locality"),
+                "country": country,
+                "status": None,
             }
             if dt and dt >= now:
                 upcoming.append(base_event)
             else:
                 recent.append(base_event)
+
         # Sort upcoming by date ascending, recent by date descending
         def _sort_key(ev):
-            return (ev.get('date') or '', ev.get('time') or '')
+            return (ev.get("date") or "", ev.get("time") or "")
+
         upcoming.sort(key=_sort_key)
         recent.sort(key=_sort_key, reverse=True)
-        return {"sport": sport_key, "league_id": None, "upcoming": upcoming, "recent": recent}
+        return {
+            "sport": sport_key,
+            "league_id": None,
+            "upcoming": upcoming,
+            "recent": recent,
+        }
 
     alias = SPORT_ALIAS.get(skey)
     league_name = None
@@ -674,11 +838,12 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
             season_events = await get_all_events_for_league_season(league_id)
             if season_events:
                 from datetime import datetime, timezone
+
                 now = datetime.now(timezone.utc)
                 upcoming_all = []
                 recent_all = []
                 for ev in season_events:
-                    d = ev.get('date')
+                    d = ev.get("date")
                     if not d:
                         continue
                     dt = None
@@ -687,7 +852,8 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
                     except Exception:  # noqa: BLE001
                         try:
                             from datetime import datetime as _dt
-                            dt = _dt.strptime(d, '%Y-%m-%d')
+
+                            dt = _dt.strptime(d, "%Y-%m-%d")
                         except Exception:  # noqa: BLE001
                             pass
                     if not dt:
@@ -696,17 +862,24 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
                         upcoming_all.append(ev)
                     else:
                         recent_all.append(ev)
-                upcoming_all.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''))
-                recent_all.sort(key=lambda e: (e.get('date') or '', e.get('time') or ''), reverse=True)
+                upcoming_all.sort(
+                    key=lambda e: (e.get("date") or "", e.get("time") or "")
+                )
+                recent_all.sort(
+                    key=lambda e: (e.get("date") or "", e.get("time") or ""),
+                    reverse=True,
+                )
+
                 # Merge with existing to ensure near-term events appear first
                 def _dedupe(existing, extra):
-                    seen = {e.get('id') for e in existing if e.get('id')}
+                    seen = {e.get("id") for e in existing if e.get("id")}
                     out = existing[:]
                     for ev in extra:
-                        if ev.get('id') and ev.get('id') in seen:
+                        if ev.get("id") and ev.get("id") in seen:
                             continue
                         out.append(ev)
                     return out
+
                 upcoming = _dedupe(upcoming, upcoming_all)
                 recent = _dedupe(recent, recent_all)
         # Limit for payload size but ensure depth
@@ -721,7 +894,13 @@ async def unified_events(sport_key: str) -> Dict[str, Any]:
     # Fallback: sport without mapped league/events
     return {"sport": sport_key, "league_id": None, "upcoming": [], "recent": []}
 
+
 __all__ = [
-    'list_all_sports', 'get_next_events_for_league', 'get_previous_events_for_league',
-    'get_team_next', 'search_team', 'unified_events', 'get_standings_for_sport'
+    "list_all_sports",
+    "get_next_events_for_league",
+    "get_previous_events_for_league",
+    "get_team_next",
+    "search_team",
+    "unified_events",
+    "get_standings_for_sport",
 ]

@@ -1,11 +1,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
+from app.core.config import settings
 
 # Use the single declarative Base from app.db.base_class so all models register on the same metadata
 from .base_class import Base
 
-RAW_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+RAW_URL = settings.DATABASE_URL
 
 # Normalize Heroku-style scheme: postgres:// -> postgresql://
 if RAW_URL.startswith("postgres://"):

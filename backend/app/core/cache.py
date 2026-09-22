@@ -3,8 +3,10 @@ import time
 import asyncio
 from typing import Any, Callable
 
+
 class TTLCache:
     """Simple async-safe in-process TTL cache."""
+
     def __init__(self):
         self._store: dict[str, tuple[float, Any]] = {}
         self._lock = asyncio.Lock()
@@ -22,6 +24,14 @@ class TTLCache:
 
     async def set(self, key: str, value: Any, ttl_seconds: int):
         async with self._lock:
+            if len(self._store) >= 1024 and key not in self._store:
+                expired = [
+                    k for k, (until, _) in self._store.items() if until < time.time()
+                ]
+                for k in expired:
+                    self._store.pop(k, None)
+                if len(self._store) >= 1024:
+                    self._store.pop(next(iter(self._store)))
             self._store[key] = (time.time() + ttl_seconds, value)
 
     async def get_or_set(self, key: str, ttl_seconds: int, producer: Callable[[], Any]):
@@ -31,5 +41,6 @@ class TTLCache:
         value = await producer()
         await self.set(key, value, ttl_seconds)
         return value
+
 
 cache = TTLCache()

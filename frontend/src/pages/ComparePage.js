@@ -1,152 +1,356 @@
-import React, { useState, useContext, useEffect } from 'react';
-import { ArrowsRightLeftIcon, TrophyIcon, BoltIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { ThemeContext } from '../contexts/ThemeContext';
-import { searchAthletes, compareAthlete } from '../api';
-import SportSelector from '../components/SportSelector';
-
-const ComparePage = () => {
-  const [left, setLeft] = useState('You');
-  const [selectedSport, setSelectedSport] = useState('running');
-  const [query, setQuery] = useState('');
-  const [athleteResults, setAthleteResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedAthlete, setSelectedAthlete] = useState(null);
-  const [comparing, setComparing] = useState(false);
-  const [comparison, setComparison] = useState(null);
-  // Dynamic metrics per sport (simple starter set)
-  const metricTemplates = {
-    running: { '5k_sec': 1800, '10k_sec': 4000, 'marathon_sec': 4 * 3600 },
-    cycling: { 'ftp_wkg': 3.0, 'vo2max_mlkgmin': 45 },
-    skiing: { 'giant_slalom_sec': 95, 'slalom_sec': 70 },
-  };
-  const [userMetrics, setUserMetrics] = useState(metricTemplates['running']);
-
-  // Update metric set when sport changes
-  useEffect(() => {
-    setUserMetrics(metricTemplates[selectedSport] || {});
-    setSelectedAthlete(null);
-    setComparison(null);
-    setQuery('');
-    setAthleteResults([]);
-  }, [selectedSport]);
-
-  // Debounced athlete search
-  useEffect(() => {
-    if (!query.trim()) { setAthleteResults([]); return; }
-    const h = setTimeout(() => {
-      setSearching(true);
-      searchAthletes(selectedSport, query, 25).then(res => {
-        setSearching(false);
-      }).catch(() => setSearching(false));
-    }, 350);
-    return () => clearTimeout(h);
-  }, [query, selectedSport]);
-
-  const submitComparison = () => {
-    if (!selectedAthlete) return;
-    setComparing(true);
-    compareAthlete({ sport: selectedSport, athlete_id: selectedAthlete.id, user_metrics: userMetrics })
-      .then(resp => setComparison(resp))
-      .finally(() => setComparing(false));
-  };
-
-  const updateMetric = (k, v) => {
-    setUserMetrics(m => ({ ...m, [k]: v }));
-  };
-
-  const { theme } = useContext(ThemeContext);
-  const isDark = theme === 'dark';
-  const heading = isDark ? 'text-white' : 'text-slate-900';
-  const surface = isDark ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-200 shadow-sm';
-  const inputCls = isDark ? 'bg-white/10 border-white/20 text-white placeholder-gray-400' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400';
-  const sub = isDark ? 'text-gray-300' : 'text-slate-600';
-  const tableHead = isDark ? 'text-gray-300' : 'text-slate-600';
-  const rowBorder = isDark ? 'border-t border-white/10' : 'border-t border-slate-200';
-
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { usePreferences } from "../contexts/PreferencesContext";
+import useResource from "../hooks/useResource";
+import { getWorkouts, searchAthletes, compareAthlete } from "../api";
+import {
+  PageHeader,
+  AuthGate,
+  ResourceState,
+  EmptyState,
+  formatDate,
+} from "../components/ui";
+import { distanceDisplay, pace } from "../utils/workouts";
+function PersonalCompare() {
+  const { user } = useAuth();
+  const { preferences } = usePreferences();
+  const resource = useResource(`compare:${user.id}`, getWorkouts);
+  const [left, setLeft] = useState("");
+  const [right, setRight] = useState("");
+  const items = resource.data?.workouts || [];
+  const a = items.find((w) => String(w.id) === left);
+  const b = items.find((w) => String(w.id) === right);
   return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-5xl mx-auto">
-        <h1 className={`text-4xl font-bold mb-6 ${heading}`}>Compare Performance</h1>
-
-        <div className={`${surface} rounded-2xl p-6 space-y-6`}>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-            <div>
-              <label className={`block mb-2 ${heading}`}>Your Label</label>
-              <input value={left} onChange={e => setLeft(e.target.value)} className={`w-full px-4 py-2 rounded-xl ${inputCls}`} />
-            </div>
-            <div>
-              <label className={`block mb-2 ${heading}`}>Sport</label>
-              <SportSelector value={selectedSport} onChange={setSelectedSport} condensed allowKeys={['running','cycling','skiing']} />
-            </div>
-            <div>
-              <label className={`block mb-2 ${heading}`}>Search Athlete</label>
-              <div className="relative">
-                <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-2.5 opacity-60" />
-                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type athlete name" className={`w-full pl-10 px-4 py-2 rounded-xl ${inputCls}`} />
-                {athleteResults.length > 0 && (
-                  <div className={`absolute z-10 mt-1 max-h-56 overflow-y-auto w-full rounded-xl ${isDark ? 'bg-gray-900 border border-white/10' : 'bg-white border border-slate-200'} shadow-lg`}> 
-                    {athleteResults.map(a => (
-                      <button key={a.id} type="button" onClick={() => { setSelectedAthlete(a); setQuery(a.name); setAthleteResults([]); }} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-500/10">
-                        {a.name} <span className="opacity-60">{a.country || a.team || ''}</span>
-                      </button>
+    <ResourceState resource={resource}>
+      {items.length < 2 ? (
+        <section className="panel">
+          <EmptyState
+            title="Two activities tell a story"
+            action={
+              <Link className="button primary" to="/log-workout">
+                Log an activity
+              </Link>
+            }
+          >
+            Record at least two sessions, then compare distance, duration and
+            pace.
+          </EmptyState>
+        </section>
+      ) : (
+        <div className="page-stack">
+          <div className="two-columns">
+            {[
+              [left, setLeft, "First activity"],
+              [right, setRight, "Second activity"],
+            ].map(([value, set, label]) => (
+              <section className="panel panel-pad" key={label}>
+                <label>
+                  {label}
+                  <select value={value} onChange={(e) => set(e.target.value)}>
+                    <option value="">Choose a session</option>
+                    {items.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.sport} · {formatDate(w.started_at)} ·{" "}
+                        {Math.round(w.duration_sec / 60)} min
+                      </option>
                     ))}
-                    {searching && <div className="px-3 py-2 text-xs opacity-60">Searching...</div>}
+                  </select>
+                </label>
+              </section>
+            ))}
+          </div>
+          {a && b && (
+            <section className="panel">
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Measure</th>
+                      <th>First activity</th>
+                      <th>Second activity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Sport</td>
+                      <td className="activity-title">{a.sport}</td>
+                      <td className="activity-title">{b.sport}</td>
+                    </tr>
+                    <tr>
+                      <td>Duration</td>
+                      <td>{(a.duration_sec / 60).toFixed(1)} min</td>
+                      <td>{(b.duration_sec / 60).toFixed(1)} min</td>
+                    </tr>
+                    <tr>
+                      <td>Distance</td>
+                      {[a, b].map((w, i) => (
+                        <td key={i}>
+                          {w.distance_m == null
+                            ? "Not recorded"
+                            : `${distanceDisplay(w.distance_m / 1000, preferences.units)} ${preferences.units === "imperial" ? "mi" : "km"}`}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td>Average pace</td>
+                      <td>{pace(a, preferences.units)}</td>
+                      <td>{pace(b, preferences.units)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="source-note" style={{ padding: "0 20px 20px" }}>
+                {a.id === b.id
+                  ? "You selected the same activity twice."
+                  : a.sport !== b.sport
+                    ? "These sessions are different sports. Pace is shown for reference."
+                    : "Different routes, conditions and distances affect pace. Use the comparison as context for your own progress."}
+              </p>
+            </section>
+          )}
+        </div>
+      )}
+    </ResourceState>
+  );
+}
+function BenchmarkCompare() {
+  const { preferences } = usePreferences();
+  const [sport, setSport] = useState("running");
+  const resource = useResource("benchmarks:" + sport, () =>
+    searchAthletes(sport),
+  );
+  const [selected, setSelected] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const [seconds, setSeconds] = useState("0");
+  const [distance, setDistance] = useState("");
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const b =
+    resource.data?.athletes?.find((a) => a.id === selected) ||
+    resource.data?.athletes?.[0];
+  const performance = b
+    ? sport === "cycling"
+      ? "56.792 km in one hour"
+      : `${Math.floor(b.time_sec / 60)}:${(b.time_sec % 60).toFixed(2).padStart(5, "0")}`
+    : "";
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const user_metrics =
+        sport === "cycling"
+          ? {
+              distance_m:
+                Number(distance) *
+                (preferences.units === "imperial" ? 1609.344 : 1000),
+            }
+          : { time_sec: Number(minutes) * 60 + Number(seconds) };
+      setResult(
+        await compareAthlete({ sport, athlete_id: b.id, user_metrics }),
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const metric = result?.metrics?.[0];
+  return (
+    <div className="page-stack">
+      <div className="toolbar">
+        <label style={{ minWidth: 250 }}>
+          Choose a sport
+          <select
+            value={sport}
+            disabled={busy}
+            onChange={(e) => {
+              setSport(e.target.value);
+              setSelected("");
+              setResult(null);
+              setError("");
+            }}
+          >
+            <option value="running">Running · 5,000 m</option>
+            <option value="cycling">Track cycling · One hour</option>
+            <option value="swimming">Swimming · 400 m freestyle</option>
+          </select>
+        </label>
+      </div>
+      <ResourceState resource={resource}>
+        {b && (
+          <div className="two-columns">
+            <form className="panel panel-pad" onSubmit={submit}>
+              <h2>
+                {sport === "cycling"
+                  ? "Your one-hour distance"
+                  : sport === "swimming"
+                    ? "Your 400 m freestyle time"
+                    : "Your 5 km time"}
+              </h2>
+              <p className="source-note" style={{ marginBottom: 22 }}>
+                Compare the same distance or duration with a published
+                historical performance.
+              </p>
+              <fieldset disabled={busy} style={{ border: 0, padding: 0 }}>
+                <label>
+                  Reference performance
+                  <select
+                    value={b.id}
+                    onChange={(e) => {
+                      setSelected(e.target.value);
+                      setResult(null);
+                    }}
+                  >
+                    {resource.data.athletes.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} · {a.date}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {sport === "cycling" ? (
+                  <label style={{ marginTop: 18 }}>
+                    Distance in 60 minutes (
+                    {preferences.units === "imperial" ? "miles" : "km"})
+                    <input
+                      type="number"
+                      min="0.1"
+                      max="1000"
+                      step="0.01"
+                      required
+                      value={distance}
+                      onChange={(e) => {
+                        setDistance(e.target.value);
+                        setResult(null);
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <div className="form-grid" style={{ marginTop: 18 }}>
+                    <label>
+                      Minutes
+                      <input
+                        type="number"
+                        min="0"
+                        max="600"
+                        step="1"
+                        required
+                        value={minutes}
+                        onChange={(e) => {
+                          setMinutes(e.target.value);
+                          setResult(null);
+                        }}
+                      />
+                    </label>
+                    <label>
+                      Seconds
+                      <input
+                        type="number"
+                        min="0"
+                        max="59.99"
+                        step="0.01"
+                        required
+                        value={seconds}
+                        onChange={(e) => {
+                          setSeconds(e.target.value);
+                          setResult(null);
+                        }}
+                      />
+                    </label>
                   </div>
                 )}
+                <button className="button primary" style={{ marginTop: 22 }}>
+                  {busy ? "Comparing…" : "Compare performance"}
+                </button>
+              </fieldset>
+              {error && (
+                <p className="notice error" role="alert">
+                  {error}
+                </p>
+              )}
+            </form>
+            <section className="panel panel-pad">
+              <p className="eyebrow">A HISTORICAL PERFORMANCE</p>
+              <h2>{b.name}</h2>
+              <p className="muted" style={{ marginTop: 12 }}>
+                {b.venue} · {formatDate(b.date, { year: "numeric" })}
+              </p>
+              <div className="goal-number" style={{ marginBottom: 20 }}>
+                {performance}
               </div>
-            </div>
-            <div className="flex items-center justify-center">
-              <ArrowsRightLeftIcon className="w-8 h-8 text-cyan-300" />
-            </div>
+              <a
+                className="text-link"
+                href={b.source}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Read the original source
+              </a>
+              {metric && (
+                <div
+                  className="benchmark"
+                  role="status"
+                  style={{ marginTop: 24 }}
+                >
+                  <h3>
+                    {sport === "cycling"
+                      ? `${((metric.user_value / metric.athlete_value) * 100).toFixed(1)}% of the reference distance`
+                      : `${Math.abs(metric.delta).toFixed(2)} seconds ${metric.delta >= 0 ? "longer" : "shorter"}`}
+                  </h3>
+                  <p className="source-note">
+                    {sport === "cycling"
+                      ? "Both distances cover exactly one hour."
+                      : `Your entered time is ${metric.ratio.toFixed(2)} times the reference time.`}
+                  </p>
+                </div>
+              )}
+              <p className="source-note">
+                These are dated race performances. Course, equipment, pool
+                length and conditions affect comparisons. The result describes
+                the mathematical difference between the two performances.
+              </p>
+            </section>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {Object.keys(userMetrics).map(k => (
-              <div key={k}>
-                <label className={`block mb-2 ${heading}`}>{k.replace(/_/g,' ').replace(/sec$/,' (sec)')}</label>
-                <input type="number" value={userMetrics[k]} onChange={e => updateMetric(k, Number(e.target.value))} className={`w-full px-4 py-2 rounded-xl ${inputCls}`} />
-              </div>
-            ))}
-            <div className="flex items-end">
-              <button disabled={comparing || !selectedAthlete} onClick={submitComparison} className="w-full bg-gradient-to-r from-cyan-600 to-emerald-600 text-white font-semibold py-2 rounded-xl shadow disabled:opacity-50">{comparing ? 'Comparing...' : 'Compare'}</button>
-            </div>
-          </div>
-
-          {comparison && (
-            <div className="mt-6 overflow-x-auto">
-              <table className="w-full text-left text-sm md:text-base">
-                <thead>
-                  <tr className={tableHead}>
-                    <th className="py-3">Metric</th>
-                    <th className="py-3">You</th>
-                    <th className="py-3">Reference</th>
-                    <th className="py-3">Delta</th>
-                    <th className="py-3">Approx %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comparison.metrics.map(m => (
-                    <tr key={m.metric} className={`${rowBorder} ${isDark ? 'text-white/80' : 'text-slate-800'}`}>
-                      <td className="py-3 font-medium">{m.metric}</td>
-                      <td className="py-3">{m.user_value}</td>
-                      <td className="py-3">{m.athlete_value ?? m.player_value}</td>
-                      <td className="py-3">{m.delta != null ? m.delta : ''}</td>
-                      <td className="py-3">{m.percentile != null ? m.percentile.toFixed(1)+'%' : ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-wrap gap-4 text-sm">
-            <div className={`${isDark ? 'text-emerald-300' : 'text-emerald-700'} flex items-center gap-2`}><BoltIcon className="w-5 h-5" /> Add more sport-specific metrics soon</div>
-            <div className={`${isDark ? 'text-cyan-300' : 'text-cyan-600'} flex items-center gap-2`}><TrophyIcon className="w-5 h-5" /> Percentiles approximate vs world-class benchmarks</div>
-          </div>
-        </div>
-      </div>
+        )}
+      </ResourceState>
     </div>
   );
-};
-
-export default ComparePage;
+}
+export default function ComparePage() {
+  const [tab, setTab] = useState("sessions");
+  return (
+    <>
+      <PageHeader
+        eyebrow="Find your perspective"
+        title="Compare your effort"
+        description="Look back at your own sessions, or compare a run, swim or one-hour ride with a remarkable performance."
+      />
+      <div className="segmented">
+        <button
+          className={tab === "sessions" ? "active" : ""}
+          aria-pressed={tab === "sessions"}
+          onClick={() => setTab("sessions")}
+        >
+          Your sessions
+        </button>
+        <button
+          className={tab === "benchmarks" ? "active" : ""}
+          aria-pressed={tab === "benchmarks"}
+          onClick={() => setTab("benchmarks")}
+        >
+          Race benchmarks
+        </button>
+      </div>
+      {tab === "sessions" ? (
+        <AuthGate>
+          <PersonalCompare />
+        </AuthGate>
+      ) : (
+        <BenchmarkCompare />
+      )}
+    </>
+  );
+}

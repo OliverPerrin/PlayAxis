@@ -1,0 +1,26 @@
+"""Activities supported by the private training log and community forms."""
+
+ACTIVITIES = (
+    "running",
+    "cycling",
+    "swimming",
+    "walking",
+    "hiking",
+    "strength",
+    "tennis",
+    "football",
+    "basketball",
+    "american football",
+    "baseball",
+    "ice hockey",
+    "rugby",
+    "volleyball",
+    "badminton",
+    "golf",
+    "rowing",
+    "yoga",
+    "skiing",
+    "gaming",
+    "chess",
+    "other",
+)

@@ -1,74 +1,84 @@
-from __future__ import annotations
-import httpx
-from typing import Optional, List
+from datetime import datetime, timezone, timedelta
+from app.services.public_data import get_json
 from app.core.config import settings
 from app.schemas.weather import WeatherResponse, WeatherCurrent, WeatherHourlyPoint
 
-WEATHER_BASE = settings.WEATHER_API_URL.rstrip("/")
-
 WEATHER_CODE_MAP = {
-    0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-    45: "Fog", 48: "Depositing rime fog", 51: "Light drizzle", 53: "Moderate drizzle",
-    55: "Dense drizzle", 61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
-    71: "Slight snow fall", 73: "Moderate snow fall", 75: "Heavy snow fall",
-    95: "Thunderstorm"
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Freezing fog",
+    51: "Light drizzle",
+    53: "Drizzle",
+    55: "Heavy drizzle",
+    56: "Freezing drizzle",
+    57: "Freezing drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    66: "Freezing rain",
+    67: "Freezing rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    77: "Snow grains",
+    80: "Rain showers",
+    81: "Rain showers",
+    82: "Heavy showers",
+    85: "Snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorms",
+    96: "Thunderstorms with hail",
+    99: "Thunderstorms with hail",
 }
 
-def _c_to_f(c: float) -> float:
-    return (c * 9/5) + 32
 
-def _kmh_to_mph(kmh: float) -> float:
-    return kmh * 0.621371
-
-async def fetch_weather(lat: float, lon: float, include_hourly: bool = False, hours: int = 0) -> WeatherResponse:
+async def fetch_weather(lat, lon, include_hourly=False, hours=0):
     params = {
         "latitude": lat,
         "longitude": lon,
-        "current_weather": "true",
+        "current": "temperature_2m,weather_code,wind_speed_10m",
+        "timezone": "auto",
     }
     if include_hourly:
-        params["hourly"] = "temperature_2m,weathercode"
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(f"{WEATHER_BASE}/forecast", params=params)
-        r.raise_for_status()
-        raw = r.json()
-
-    cw = raw.get("current_weather") or {}
-    code = cw.get("weathercode")
-    temp_c = cw.get("temperature")
-    wind_kmh = cw.get("windspeed")
-
-    current = WeatherCurrent(
-        temperature_c=temp_c,
-        temperature_f=_c_to_f(temp_c),
-        windspeed_kmh=wind_kmh,
-        windspeed_mph=_kmh_to_mph(wind_kmh),
-        weather_code=code,
-        description=WEATHER_CODE_MAP.get(code, "Unknown"),
-        observation_time=cw.get("time"),
+        params.update(hourly="temperature_2m,weather_code", forecast_hours=hours or 24)
+    data = await get_json(
+        f'{settings.WEATHER_API_URL.rstrip("/")}/forecast', params, ttl=600
     )
+    c = data["current"]
+    temp = c["temperature_2m"]
+    wind = c["wind_speed_10m"]
+    code = c["weather_code"]
+    hourly = data.get("hourly", {})
+    offset = timezone(timedelta(seconds=data.get("utc_offset_seconds", 0)))
 
-    hourly: Optional[List[WeatherHourlyPoint]] = None
-    if include_hourly:
-        times = raw.get("hourly", {}).get("time", [])
-        temps = raw.get("hourly", {}).get("temperature_2m", [])
-        codes = raw.get("hourly", {}).get("weathercode", [])
-        points: List[WeatherHourlyPoint] = []
-        for i, t in enumerate(times):
-            if i < len(temps):
-                points.append(WeatherHourlyPoint(
-                    time=t,
-                    temperature_c=temps[i],
-                    weather_code=codes[i] if i < len(codes) else None
-                ))
-        if hours > 0:
-            points = points[:hours]
-        hourly = points
+    def aware(value):
+        return datetime.fromisoformat(value).replace(tzinfo=offset).isoformat()
 
     return WeatherResponse(
         latitude=lat,
         longitude=lon,
-        current=current,
-        hourly=hourly
+        current=WeatherCurrent(
+            temperature_c=temp,
+            temperature_f=temp * 9 / 5 + 32,
+            windspeed_kmh=wind,
+            windspeed_mph=wind * 0.621371,
+            weather_code=code,
+            description=WEATHER_CODE_MAP.get(code, "Weather observation"),
+            observation_time=aware(c["time"]),
+        ),
+        hourly=(
+            [
+                WeatherHourlyPoint(time=aware(t), temperature_c=v, weather_code=w)
+                for t, v, w in zip(
+                    hourly.get("time", []),
+                    hourly.get("temperature_2m", []),
+                    hourly.get("weather_code", []),
+                )
+            ]
+            if include_hourly
+            else None
+        ),
     )

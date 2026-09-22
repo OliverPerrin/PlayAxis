@@ -8,11 +8,11 @@ from app.models.user import User
 from app.crud.user import get_user_by_email
 from app.core.config import settings
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -20,7 +20,9 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
@@ -32,9 +34,9 @@ def get_current_user(
         raise credentials_exception
     return user
 
+
 def get_optional_user(
-    authorization: str | None = Header(None),
-    db: Session = Depends(get_db)
+    authorization: str | None = Header(None), db: Session = Depends(get_db)
 ) -> User | None:
     """Return authenticated user if a valid Bearer token is provided; otherwise None.
     Does not raise 401 in absence of credentials, enabling public endpoints to behave gracefully.
@@ -43,7 +45,9 @@ def get_optional_user(
         return None
     token = authorization.split(" ", 1)[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         user_id: str = payload.get("sub")
         if not user_id:
             return None

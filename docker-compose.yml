@@ -1,16 +1,31 @@
 services:
   backend:
     build: ./backend
-    env_file:
-      - ./backend/.env
+    environment:
+      DATABASE_URL: sqlite:////data/playaxis.db
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a generated random secret before running Docker Compose}
+      FRONTEND_URL: http://localhost:3000
+      PLACE_CACHE_DIR: /data/place-cache
+      FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
+      BALLDONTLIE_API_KEY: ${BALLDONTLIE_API_KEY:-}
+      TICKETMASTER_API_KEY: ${TICKETMASTER_API_KEY:-}
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
+      TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      THESPORTSDB_API_KEY: ${THESPORTSDB_API_KEY:-}
+      LOCAL_SEARCH_MONTHLY_LIMIT: ${LOCAL_SEARCH_MONTHLY_LIMIT:-100}
+    volumes:
+      - playaxis-data:/data
     ports:
-      - "8000:8000"
-
+      - "127.0.0.1:8000:8000"
   frontend:
     build: ./frontend
+    environment:
+      BROWSER: none
+      REACT_APP_API_URL: http://localhost:8000
     ports:
-      - "3000:3000"
-    env_file:
-      - ./frontend/.env
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
+volumes:
+  playaxis-data:
