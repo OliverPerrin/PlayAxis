@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import httpx
+from app.services.http_client import provider_client
 from fastapi import HTTPException
 from app.core.config import settings
 from app.core.cache import cache
@@ -37,7 +38,7 @@ async def football_request(path):
             )
         await asyncio.sleep(delay)
         try:
-            async with httpx.AsyncClient(
+            async with provider_client(
                 timeout=18,
                 headers={**_HEADERS, "X-Auth-Token": settings.FOOTBALL_DATA_API_KEY},
             ) as client:
@@ -145,26 +146,26 @@ async def football_table():
 
 async def csv_feed(url, ttl=3600):
     key = "csv:" + url
-    value = await cache.get(key)
-    if value is not None:
-        return value
-    try:
-        async with httpx.AsyncClient(
-            timeout=18, headers=_HEADERS, follow_redirects=True
-        ) as client:
-            response = await client.get(url)
-        response.raise_for_status()
-        if len(response.content) > 8_000_000:
-            raise ValueError("Response too large")
-        value = list(csv.DictReader(io.StringIO(response.text)))
-        if len(value) > 30000:
-            raise ValueError("Too many rows")
-        await cache.set(key, value, ttl)
-        return value
-    except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(
-            503, "The NFL dataset is temporarily unavailable. Please retry shortly."
-        ) from exc
+
+    async def fetch():
+        try:
+            async with provider_client(
+                timeout=18, headers=_HEADERS, follow_redirects=True
+            ) as client:
+                response = await client.get(url)
+            response.raise_for_status()
+            if len(response.content) > 8_000_000:
+                raise ValueError("Response too large")
+            value = list(csv.DictReader(io.StringIO(response.text)))
+            if len(value) > 30000:
+                raise ValueError("Too many rows")
+            return value
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(
+                503, "The NFL dataset is temporarily unavailable. Please retry shortly."
+            ) from exc
+
+    return await cache.get_or_set(key, ttl, fetch)
 
 
 NFL_GAMES = (

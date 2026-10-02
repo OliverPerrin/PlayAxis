@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePreferences } from "../contexts/PreferencesContext";
 import {
-  getEvents,
+  getEventHighlights,
   getWorkouts,
   getGoals,
   getSessions,
@@ -22,13 +22,13 @@ import {
 } from "../components/ui";
 import WeatherWidget from "../components/widgets/WeatherWidget";
 import { totalWorkouts, inPeriod, distanceDisplay } from "../utils/workouts";
-import { goalAmount, goalUnit } from "./GoalsPage";
-import { SessionCard } from "./LocalEventsPage";
+import { goalAmount, goalUnit } from "../utils/goals";
+import SessionCard from "../components/events/SessionCard";
 export default function HomePage() {
   const { user } = useAuth();
   const { preferences, followedTeams } = usePreferences();
   const city = preferences.location;
-  const events = useResource("home-events", () => getEvents());
+  const events = useResource("home-events", getEventHighlights);
   const gaming = useResource("home-gaming", () => getWatch("esports"));
   const workouts = useResource(
     user ? `workouts:${user.id}` : null,

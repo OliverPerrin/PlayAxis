@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone, timedelta
 
 import httpx
+from app.services.http_client import provider_client
 from fastapi import HTTPException
 from app.core.cache import cache
 from app.core import place_cache
@@ -85,58 +86,48 @@ SPORTS = [
         "coverage": "Full season schedule, final scores and division tables",
     },
 ]
-_locks = {}
 _sportsdb_lock = asyncio.Lock()
 _last_sportsdb = 0.0
 
 
 async def get_json(url, params=None, ttl=300, method="GET"):
     key = f"public:{method}:{url}:{sorted((params or {}).items())}"
-    found = await cache.get(key)
-    if found is not None:
-        return found
-    lock = _locks.setdefault(key, asyncio.Lock())
-    try:
-        async with lock:
-            found = await cache.get(key)
-            if found is not None:
-                return found
-            try:
-                async with httpx.AsyncClient(
-                    timeout=18, headers=HEADERS, follow_redirects=True
-                ) as client:
-                    if "thesportsdb.com" in url:
-                        global _last_sportsdb
-                        async with _sportsdb_lock:
-                            await asyncio.sleep(
-                                max(0, 2.1 - (time.monotonic() - _last_sportsdb))
-                            )
-                            _last_sportsdb = time.monotonic()
-                            response = await client.get(url, params=params)
-                    else:
-                        response = await client.request(
-                            method,
-                            url,
-                            params=params if method == "GET" else None,
-                            data=params if method == "POST" else None,
+
+    async def fetch():
+        try:
+            async with provider_client(
+                timeout=18, headers=HEADERS, follow_redirects=True
+            ) as client:
+                if "thesportsdb.com" in url:
+                    global _last_sportsdb
+                    async with _sportsdb_lock:
+                        await asyncio.sleep(
+                            max(0, 2.1 - (time.monotonic() - _last_sportsdb))
                         )
-                    response.raise_for_status()
-                    data = response.json()
-                    if isinstance(data, dict) and data.get("remark"):
-                        raise HTTPException(
-                            503,
-                            "The place provider could not complete this search. Please try again shortly.",
-                        )
-                    await cache.set(key, data, ttl)
-                    return data
-            except (httpx.HTTPError, ValueError) as exc:
-                raise HTTPException(
-                    503,
-                    "This data provider is temporarily unavailable. Please try again shortly.",
-                ) from exc
-    finally:
-        if not lock.locked():
-            _locks.pop(key, None)
+                        _last_sportsdb = time.monotonic()
+                        response = await client.get(url, params=params)
+                else:
+                    response = await client.request(
+                        method,
+                        url,
+                        params=params if method == "GET" else None,
+                        data=params if method == "POST" else None,
+                    )
+                response.raise_for_status()
+                data = response.json()
+                if isinstance(data, dict) and data.get("remark"):
+                    raise HTTPException(
+                        503,
+                        "The place provider could not complete this search. Please try again shortly.",
+                    )
+                return data
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(
+                503,
+                "This data provider is temporarily unavailable. Please try again shortly.",
+            ) from exc
+
+    return await cache.get_or_set(key, ttl, fetch)
 
 
 def stamp():

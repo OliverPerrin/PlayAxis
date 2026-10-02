@@ -3,6 +3,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
@@ -44,28 +45,43 @@ def goals(
     except (ZoneInfoNotFoundError, ValueError):
         raise HTTPException(422, "Unknown timezone")
     now = datetime.now(zone)
-    rows = []
-    for goal in (
+    goal_records = (
         db.query(Goal).filter_by(user_id=user.id).order_by(Goal.id.desc()).all()
-    ):
+    )
+    starts = {}
+    totals = {}
+    for period in {goal.period for goal in goal_records}:
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         start = (
             start - timedelta(days=start.weekday())
-            if goal.period == "weekly"
+            if period == "weekly"
             else start.replace(day=1)
         )
-        records = db.query(Workout).filter(
-            Workout.user_id == user.id,
-            Workout.started_at >= start.astimezone(timezone.utc),
-            Workout.started_at <= now.astimezone(timezone.utc),
+        starts[period] = start
+        # Aggregate in SQL once per period, regardless of goal or workout count.
+        totals[period] = (
+            db.query(
+                Workout.sport,
+                func.count(Workout.id),
+                func.coalesce(func.sum(Workout.distance_m), 0),
+                func.coalesce(func.sum(Workout.duration_sec), 0),
+            )
+            .filter(
+                Workout.user_id == user.id,
+                Workout.started_at >= start.astimezone(timezone.utc),
+                Workout.started_at <= now.astimezone(timezone.utc),
+            )
+            .group_by(Workout.sport)
+            .all()
         )
-        if goal.sport:
-            records = records.filter(Workout.sport == goal.sport)
-        records = records.all()
-        progress = (
-            len(records)
-            if goal.metric == "sessions"
-            else sum((getattr(w, goal.metric) or 0) for w in records)
+    rows = []
+    for goal in goal_records:
+        start = starts[goal.period]
+        metric_index = {"sessions": 1, "distance_m": 2, "duration_sec": 3}[goal.metric]
+        progress = sum(
+            row[metric_index]
+            for row in totals[goal.period]
+            if not goal.sport or row[0] == goal.sport
         )
         rows.append(
             {
@@ -120,16 +136,35 @@ class ClubIn(BaseModel):
         return value.strip()
 
 
-def club_data(c, db, user):
-    members = db.query(ClubMember).filter_by(club_id=c.id).all()
+def membership_totals(db, model, parent_column, ids, user):
+    """Count and check membership without loading every member into Python."""
+    if not ids:
+        return {}
+    return {
+        parent_id: (count, bool(joined))
+        for parent_id, count, joined in db.query(
+            parent_column,
+            func.count(model.id),
+            func.max(case((model.user_id == (user.id if user else None), 1), else_=0)),
+        )
+        .filter(parent_column.in_(ids))
+        .group_by(parent_column)
+        .all()
+    }
+
+
+def club_data(c, db, user, totals=None):
+    if totals is None:
+        totals = membership_totals(db, ClubMember, ClubMember.club_id, [c.id], user)
+    count, joined = totals.get(c.id, (0, False))
     return {
         "id": c.id,
         "name": c.name,
         "sport": c.sport,
         "city": c.city,
         "description": c.description,
-        "members": len(members),
-        "joined": bool(user and any(m.user_id == user.id for m in members)),
+        "members": count,
+        "joined": bool(user and joined),
         "owned": bool(user and c.owner_id == user.id),
     }
 
@@ -148,12 +183,11 @@ def clubs(
         )
     if sport:
         query = query.filter(Club.sport == sport)
-    return {
-        "clubs": [
-            club_data(c, db, user)
-            for c in query.order_by(Club.created_at.desc()).limit(100).all()
-        ]
-    }
+    records = query.order_by(Club.created_at.desc()).limit(100).all()
+    totals = membership_totals(
+        db, ClubMember, ClubMember.club_id, [c.id for c in records], user
+    )
+    return {"clubs": [club_data(c, db, user, totals) for c in records]}
 
 
 @router.post("/clubs", status_code=201)
@@ -182,16 +216,16 @@ def club(id: int, db: Session = Depends(get_db), user=Depends(get_optional_user)
             .filter(ClubMember.club_id == id)
             .all()
         ]
-    result["sessions"] = [
-        session_data(s, db, user)
-        for s in db.query(SessionEvent)
+    records = (
+        db.query(SessionEvent)
         .filter(
             SessionEvent.club_id == id,
             SessionEvent.starts_at >= datetime.now(timezone.utc),
         )
         .order_by(SessionEvent.starts_at)
         .all()
-    ]
+    )
+    result["sessions"] = session_list_data(records, db, user)
     return result
 
 
@@ -256,9 +290,26 @@ class SessionIn(BaseModel):
         return self
 
 
-def session_data(s, db, user):
-    host = db.get(User, s.host_id)
-    attendees = db.query(SessionAttendee).filter_by(session_id=s.id).all()
+def session_list_data(records, db, user):
+    if not records:
+        return []
+    hosts = {
+        u.id: u
+        for u in db.query(User).filter(User.id.in_({s.host_id for s in records})).all()
+    }
+    totals = membership_totals(
+        db, SessionAttendee, SessionAttendee.session_id, [s.id for s in records], user
+    )
+    return [session_data(s, db, user, hosts, totals) for s in records]
+
+
+def session_data(s, db, user, hosts=None, totals=None):
+    host = hosts.get(s.host_id) if hosts is not None else db.get(User, s.host_id)
+    if totals is None:
+        totals = membership_totals(
+            db, SessionAttendee, SessionAttendee.session_id, [s.id], user
+        )
+    count, joined = totals.get(s.id, (0, False))
     return {
         "id": f"local-{s.id}",
         "session_id": s.id,
@@ -274,8 +325,8 @@ def session_data(s, db, user):
         "source": "PlayAxis community",
         "host": host.full_name if host else "Member",
         "club_id": s.club_id,
-        "attendees": len(attendees),
-        "joined": bool(user and any(a.user_id == user.id for a in attendees)),
+        "attendees": count,
+        "joined": bool(user and joined),
         "owned": bool(user and s.host_id == user.id),
         "url": None,
     }
@@ -333,10 +384,9 @@ def sessions(
             SessionAttendee, SessionAttendee.session_id == SessionEvent.id
         ).filter(SessionAttendee.user_id == user.id)
     return {
-        "events": [
-            session_data(s, db, user)
-            for s in q.order_by(SessionEvent.starts_at).limit(200).all()
-        ]
+        "events": session_list_data(
+            q.order_by(SessionEvent.starts_at).limit(200).all(), db, user
+        )
     }
 
 

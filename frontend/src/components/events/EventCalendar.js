@@ -1,9 +1,18 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 export default function EventCalendar({ events = [] }) {
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
+  const eventsByDay = useMemo(() => {
+    const days = new Map();
+    for (const event of events) {
+      const day = new Date(event.start).toDateString();
+      if (!days.has(day)) days.set(day, []);
+      days.get(day).push(event);
+    }
+    return days;
+  }, [events]);
   const start = new Date(month);
   start.setDate(1 - ((start.getDay() + 6) % 7));
   const cells = Array.from({ length: 42 }, (_, i) => {
@@ -53,11 +62,7 @@ export default function EventCalendar({ events = [] }) {
             className={`calendar-day ${date.getMonth() !== month.getMonth() ? "other" : ""} ${date.toDateString() === new Date().toDateString() ? "today" : ""}`}
           >
             <time dateTime={date.toISOString()}>{date.getDate()}</time>
-            {events
-              .filter(
-                (e) => new Date(e.start).toDateString() === date.toDateString(),
-              )
-              .map((e) => (
+            {(eventsByDay.get(date.toDateString()) || []).map((e) => (
                 <Link
                   key={e.id}
                   to={`/events/${e.id}`}

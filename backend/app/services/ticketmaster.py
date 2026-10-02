@@ -3,6 +3,7 @@ import time
 from datetime import datetime, timezone, timedelta, time as day_time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
+from app.services.http_client import provider_client
 from fastapi import HTTPException
 from app.core.config import settings
 from app.core.cache import cache
@@ -72,7 +73,7 @@ async def search(
     async with _lock:
         await asyncio.sleep(max(0, _next - time.monotonic()))
         try:
-            async with httpx.AsyncClient(timeout=18) as client:
+            async with provider_client(timeout=18) as client:
                 response = await client.get(
                     "https://app.ticketmaster.com/discovery/v2/events.json",
                     params=params,
@@ -164,9 +165,12 @@ async def detail(id):
         return existing
     global _next
     async with _lock:
+        existing = await cache.get(key)
+        if existing is not None:
+            return existing
         await asyncio.sleep(max(0, _next - time.monotonic()))
         try:
-            async with httpx.AsyncClient(timeout=18) as client:
+            async with provider_client(timeout=18) as client:
                 response = await client.get(
                     "https://app.ticketmaster.com/discovery/v2/events/"
                     + quote(id, safe="")

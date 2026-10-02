@@ -25,7 +25,7 @@ export default function EventsPage() {
     setQuery(q);
     setVisibleCount(30);
   }, [q, sport]);
-  const resource = useResource(`events:${q}:${sport}`, () =>
+  const resource = useResource(onlySaved ? null : `events:${q}:${sport}`, () =>
     getEvents(q, null, null, { sport }),
   );
   const items = onlySaved

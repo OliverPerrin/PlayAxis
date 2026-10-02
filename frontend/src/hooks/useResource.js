@@ -12,8 +12,8 @@ export default function useResource(key, loader) {
     error: null,
     errorStatus: null,
   });
-  const reload = useCallback(() => {
-    clearCache();
+  const reload = useCallback((options = {}) => {
+    if (options.invalidate !== false) clearCache();
     setState((prev) => ({
       ...prev,
       loading: true,
@@ -29,6 +29,7 @@ export default function useResource(key, loader) {
       setState({ data: null, loading: false, error: null });
       return;
     }
+    const load = loaderRef.current;
     const sameKey = previousKey.current === key;
     previousKey.current = key;
     setState((prev) => ({
@@ -38,7 +39,7 @@ export default function useResource(key, loader) {
       errorStatus: null,
     }));
     Promise.resolve()
-      .then(() => loaderRef.current())
+      .then(() => active ? load() : undefined)
       .then((data) => {
         if (active) setState({ data, loading: false, error: null });
       })

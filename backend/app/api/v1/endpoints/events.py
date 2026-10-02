@@ -57,6 +57,7 @@ async def list_events(
     max_lat: float | None = Query(None, ge=-90, le=90),
     min_lon: float | None = Query(None, ge=-180, le=180),
     max_lon: float | None = Query(None, ge=-180, le=180),
+    highlights: bool = False,
 ):
     canonical = known_sport(sport)["key"] if sport else None
     bounds = [min_lat, max_lat, min_lon, max_lon]
@@ -92,6 +93,13 @@ async def list_events(
             and min_lon <= e["longitude"] <= max_lon
         ]
     data.sort(key=lambda e: e.get("start") or "")
+    if highlights:
+        # Home needs one candidate per league, preserving its interest ranking
+        # without transferring every fixture in each league's season schedule.
+        leagues = {}
+        for item in data:
+            leagues.setdefault(item.get("league"), item)
+        data = list(leagues.values())
     total = len(data)
     data = data[(page - 1) * limit : page * limit]
     return {

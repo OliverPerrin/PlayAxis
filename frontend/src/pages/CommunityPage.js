@@ -30,7 +30,7 @@ function Post({ post, reload, refreshing }) {
     setError("");
     try {
       await fn();
-      reload();
+      reload({ invalidate: false });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -163,7 +163,7 @@ export default function CommunityPage() {
     try {
       await createPost({ content: text.trim(), sport });
       setText("");
-      resource.reload();
+      resource.reload({ invalidate: false });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -261,7 +261,7 @@ export default function CommunityPage() {
               disabled={resource.loading}
               onClick={() => {
                 setPages((p) => p + 1);
-                resource.reload();
+                resource.reload({ invalidate: false });
               }}
             >
               {resource.loading ? "Loading…" : "Load older posts"}

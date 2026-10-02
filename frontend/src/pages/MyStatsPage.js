@@ -48,7 +48,7 @@ function Stats() {
     try {
       await deleteWorkout(id);
       setDeleting(null);
-      resource.reload();
+      resource.reload({ invalidate: false });
     } catch (e) {
       setError(e.message);
     }

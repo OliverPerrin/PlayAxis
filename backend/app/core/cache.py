@@ -10,6 +10,7 @@ class TTLCache:
     def __init__(self):
         self._store: dict[str, tuple[float, Any]] = {}
         self._lock = asyncio.Lock()
+        self._inflight = {}
 
     async def get(self, key: str):
         async with self._lock:
@@ -38,9 +39,29 @@ class TTLCache:
         existing = await self.get(key)
         if existing is not None:
             return existing
-        value = await producer()
-        await self.set(key, value, ttl_seconds)
-        return value
+        # One producer per key and event loop. Shielding means a disconnected
+        # caller does not cancel a refresh still needed by other requests.
+        flight_key = (asyncio.get_running_loop(), key)
+        task = self._inflight.get(flight_key)
+        if task is None:
+
+            async def produce():
+                value = await producer()
+                await self.set(key, value, ttl_seconds)
+                return value
+
+            task = asyncio.create_task(produce())
+            self._inflight[flight_key] = task
+
+            def finished(done):
+                if self._inflight.get(flight_key) is done:
+                    self._inflight.pop(flight_key, None)
+                # Retrieve failures even if every waiting request disconnected.
+                if not done.cancelled():
+                    done.exception()
+
+            task.add_done_callback(finished)
+        return await asyncio.shield(task)
 
 
 cache = TTLCache()

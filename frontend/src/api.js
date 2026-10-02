@@ -6,11 +6,38 @@ export const API_URL = configured
   : "/api/v1";
 const cache = new Map();
 const pending = new Map();
-let cacheGeneration = 0;
+const MAX_CACHE_ENTRIES = 200;
+
+function invalidatePaths(paths, includeLocalEvents = false) {
+  const matches = (path) =>
+    (includeLocalEvents && path.startsWith("/events/local-")) ||
+    paths.some((prefix) =>
+      path === prefix || path.startsWith(`${prefix}?`) || path.startsWith(`${prefix}/`),
+    );
+  for (const [key, entry] of cache) if (matches(entry.path)) cache.delete(key);
+  for (const [key, entry] of pending) if (matches(entry.path)) pending.delete(key);
+}
+
+function invalidateMutation(path) {
+  const root = path.split("?")[0].split("/")[1];
+  const related = {
+    workouts: ["/workouts", "/goals", "/recommendations"],
+    users: ["/users", "/auth/me", "/recommendations"],
+    goals: ["/goals", "/recommendations"],
+    community: ["/community"],
+    clubs: ["/clubs", "/sessions", "/recommendations"],
+    sessions: ["/sessions", "/clubs", "/recommendations"],
+  };
+  if (related[root])
+    invalidatePaths(related[root], root === "sessions" || root === "clubs");
+}
 
 export async function request(path, options = {}) {
   const token = localStorage.getItem("token");
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(
     () => controller.abort(),
     path.startsWith("/places") ? 45000 : 35000,
@@ -37,7 +64,11 @@ export async function request(path, options = {}) {
           .join(". ");
       const error = new Error(message);
       error.status = response.status;
-      if (response.status === 401 && !path.startsWith("/auth/login")) {
+      if (
+        response.status === 401 &&
+        !path.startsWith("/auth/login") &&
+        token === localStorage.getItem("token")
+      ) {
         localStorage.removeItem("token");
         window.dispatchEvent(new Event("session-expired"));
       }
@@ -47,8 +78,11 @@ export async function request(path, options = {}) {
       throw new Error(
         "The server returned an unreadable response. Please try again.",
       );
+    if (!["GET", "HEAD"].includes((options.method || "GET").toUpperCase()))
+      invalidateMutation(path);
     return data;
   } catch (error) {
+    if (error.name === "AbortError" && options.signal?.aborted) throw error;
     if (error.name === "AbortError")
       throw new Error(
         "The provider is taking too long. Please try again in a moment.",
@@ -60,29 +94,39 @@ export async function request(path, options = {}) {
     throw error;
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abort);
   }
 }
 
 export function cached(path, ttl = 60000) {
   const key = `${localStorage.getItem("token") || "public"}:${path}`;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.time < ttl) return Promise.resolve(hit.data);
-  if (pending.has(key)) return pending.get(key);
-  const generation = cacheGeneration;
+  if (hit && Date.now() < hit.expires && Date.now() - hit.time < ttl)
+    return Promise.resolve(hit.data);
+  cache.delete(key);
+  if (pending.has(key)) return pending.get(key).promise;
+  const entry = { path };
   const promise = request(path)
     .then((data) => {
-      if (generation === cacheGeneration)
-        cache.set(key, { time: Date.now(), data });
+      // Invalidated requests may finish, but must never repopulate the cache.
+      if (pending.get(key) === entry) {
+        const now = Date.now();
+        for (const [storedKey, stored] of cache)
+          if (stored.expires <= now) cache.delete(storedKey);
+        cache.set(key, { path, time: now, expires: now + ttl, data });
+        while (cache.size > MAX_CACHE_ENTRIES)
+          cache.delete(cache.keys().next().value);
+      }
       return data;
     })
     .finally(() => {
-      if (pending.get(key) === promise) pending.delete(key);
+      if (pending.get(key) === entry) pending.delete(key);
     });
-  pending.set(key, promise);
+  entry.promise = promise;
+  pending.set(key, entry);
   return promise;
 }
 export function clearCache() {
-  cacheGeneration += 1;
   cache.clear();
   pending.clear();
 }
@@ -97,7 +141,7 @@ export const register = (username, email, password) =>
     body: JSON.stringify({ username, email, password }),
   });
 export const getMe = () => request("/auth/me");
-export const getProfile = () => request("/users/me");
+export const getProfile = () => cached("/users/me", 30000);
 export const updateProfile = (payload) =>
   request("/users/me", { method: "PUT", body: JSON.stringify(payload) });
 export const updateInterests = (interests) =>
@@ -118,17 +162,26 @@ export const getEvents = async (
   });
   const first = await cached(`/events?${params}`);
   const events = [...first.events];
-  for (let page = 2; events.length < first.total; page += 1) {
-    params.set("page", String(page));
-    const next = await cached(`/events?${params}`);
-    if (!next.events.length) break;
-    events.push(...next.events);
+  // Bound concurrency so large calendars do not form a request waterfall or
+  // overwhelm the API. Preserve page order and the complete-list contract.
+  const pageCount = Math.ceil(first.total / 200);
+  for (let start = 2; start <= pageCount; start += 3) {
+    const pages = await Promise.all(
+      Array.from({ length: Math.min(3, pageCount - start + 1) }, (_, index) => {
+        const pageParams = new URLSearchParams(params);
+        pageParams.set("page", String(start + index));
+        return cached(`/events?${pageParams}`);
+      }),
+    );
+    for (const page of pages) events.push(...page.events);
+    if (pages.some((page) => !page.events.length)) break;
   }
   return {
     ...first,
     events: [...new Map(events.map((e) => [e.id, e])).values()],
   };
 };
+export const getEventHighlights = () => cached("/events?highlights=true");
 export const getEventsInViewport = (query = "", bbox = {}) =>
   cached(`/events/viewport?${new URLSearchParams({ q: query, ...bbox })}`);
 export const getEventById = (id) => cached(`/events/${encodeURIComponent(id)}`);
@@ -171,20 +224,18 @@ export const saveWorkout = async (payload) => {
     method: "POST",
     body: JSON.stringify(payload),
   });
-  clearCache();
   window.dispatchEvent(new Event("workouts-changed"));
   return result;
 };
 export const deleteWorkout = async (id) => {
   await request(`/workouts/${id}`, { method: "DELETE" });
-  clearCache();
   window.dispatchEvent(new Event("workouts-changed"));
 };
 export const getCommunity = async (pages = 1) => {
   let posts = [],
     hasMore = false;
   for (let page = 0; page < pages; page += 1) {
-    const data = await request(`/community?limit=30&skip=${page * 30}`);
+    const data = await cached(`/community?limit=30&skip=${page * 30}`, 15000);
     posts.push(...data.posts);
     hasMore = data.has_more;
     if (!hasMore) break;
@@ -216,16 +267,17 @@ export const comparePlayer = compareAthlete;
 
 // Participation and planning.
 export const getGoals = () =>
-  request(
+  cached(
     `/goals?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}`,
+    30000,
   );
 export const createTrainingGoal = (body) =>
   request("/goals", { method: "POST", body: JSON.stringify(body) });
 export const deleteTrainingGoal = (id) =>
   request(`/goals/${id}`, { method: "DELETE" });
 export const getClubs = (q = "", sport = "") =>
-  request(`/clubs?${new URLSearchParams({ q, ...(sport ? { sport } : {}) })}`);
-export const getClub = (id) => request(`/clubs/${id}`);
+  cached(`/clubs?${new URLSearchParams({ q, ...(sport ? { sport } : {}) })}`, 15000);
+export const getClub = (id) => cached(`/clubs/${id}`, 15000);
 export const createClub = (body) =>
   request("/clubs", { method: "POST", body: JSON.stringify(body) });
 export const toggleClubMembership = (id) =>
@@ -237,17 +289,17 @@ export const getSessions = (
   joined = false,
   dates = {},
 ) =>
-  request(
+  cached(
     `/sessions?${new URLSearchParams({ city, sport, joined, ...dates })}`,
+    15000,
   );
 export const createSession = (body) =>
   request("/sessions", { method: "POST", body: JSON.stringify(body) });
-export const getSession = (id) => request(`/sessions/${id}`);
+export const getSession = (id) => cached(`/sessions/${id}`, 15000);
 export const rsvpSession = (id) =>
   request(`/sessions/${id}/rsvp`, { method: "POST" });
 export const cancelSession = async (id) => {
   const result = await request(`/sessions/${id}`, { method: "DELETE" });
-  clearCache();
   return result;
 };
 export const searchLocalEvents = (location, sport = "sports", dates = {}) =>
@@ -255,18 +307,17 @@ export const searchLocalEvents = (location, sport = "sports", dates = {}) =>
     `/discovery/events?${new URLSearchParams({ city: location.name, country: location.country || "", tz: location.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", sport, ...dates, ...(Number.isFinite(location.latitude) && Number.isFinite(location.longitude) ? { lat: location.latitude.toFixed(2), lon: location.longitude.toFixed(2) } : {}) })}`,
     3600000,
   );
-export const getWorkout = (id) => request(`/workouts/${id}`);
+export const getWorkout = (id) => cached(`/workouts/${id}`, 15000);
 export const updateWorkout = async (id, body) => {
   const result = await request(`/workouts/${id}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
-  clearCache();
   return result;
 };
 export const getWatch = (category = "chess") =>
   cached(`/streams?category=${encodeURIComponent(category)}`);
-export const getRecommendations = () => request("/recommendations");
+export const getRecommendations = () => cached("/recommendations", 30000);
 export const getAccountExport = () => request("/users/me/export");
 export const getTeamProfile = (id) =>
   cached(`/sports/teams/${encodeURIComponent(id)}`);
