@@ -788,3 +788,45 @@ def test_session_dates_and_all_sport_filter_before_result_limit(client):
     )
     assert result.status_code == 200, result.text
     assert [e["name"] for e in result.json()["events"]] == ["Later running"]
+
+
+def test_home_highlights_preserve_league_diversity_without_full_schedule(
+    client, monkeypatch
+):
+    import app.api.v1.endpoints.events as endpoint
+
+    cache._store.clear()
+    calls = []
+
+    async def fake(key):
+        calls.append(key)
+        return {
+            "upcoming": [
+                {
+                    "id": f"{key}-{i}",
+                    "league": key,
+                    "sport": key,
+                    "name": f"Fixture {i}",
+                    "start": f"2027-01-{i + 1:02d}T12:00:00Z",
+                }
+                for i in range(20)
+            ],
+            "source": key,
+            "coverage": "Full schedule",
+            "limited": False,
+        }
+
+    monkeypatch.setattr(endpoint, "sports_events", fake)
+    response = client.get(
+        "/api/v1/events?highlights=true", headers={"Accept-Encoding": "gzip"}
+    )
+    assert response.status_code == 200
+    assert response.headers["content-encoding"] == "gzip"
+    assert "Accept-Encoding" in response.headers["vary"]
+    highlights = response.json()
+    assert len(highlights["events"]) == highlights["total"] == len(endpoint.SPORTS)
+    assert all(event["id"].endswith("-0") for event in highlights["events"])
+    full = client.get("/api/v1/events?limit=200").json()
+    assert full["total"] == len(endpoint.SPORTS) * 20
+    assert len(calls) == len(endpoint.SPORTS)
+    assert highlights["sources"] == full["sources"]

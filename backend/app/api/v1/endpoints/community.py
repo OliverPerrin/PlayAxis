@@ -1,6 +1,8 @@
+from collections import defaultdict
 from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.dependencies import get_current_user, get_optional_user
@@ -35,23 +37,45 @@ def feed(
     user=Depends(get_optional_user),
 ):
     posts = (
-        db.query(CommunityPost)
+        db.query(CommunityPost, User)
+        .join(User, CommunityPost.user_id == User.id)
         .order_by(CommunityPost.created_at.desc(), CommunityPost.id.desc())
         .offset(skip)
         .limit(limit + 1)
         .all()
     )
-    output = []
-    for p in posts[:limit]:
-        author = db.get(User, p.user_id)
-        likes = db.query(CommunityLike).filter_by(post_id=p.id).all()
-        comments = (
+    post_ids = [p.id for p, _ in posts[:limit]]
+    likes_by_post = {}
+    comments_by_post = defaultdict(list)
+    if post_ids:
+        likes_by_post = {
+            post_id: (count, liked)
+            for post_id, count, liked in db.query(
+                CommunityLike.post_id,
+                func.count(CommunityLike.id),
+                func.max(
+                    case(
+                        (CommunityLike.user_id == (user.id if user else None), 1),
+                        else_=0,
+                    )
+                ),
+            )
+            .filter(CommunityLike.post_id.in_(post_ids))
+            .group_by(CommunityLike.post_id)
+            .all()
+        }
+        for comment, author in (
             db.query(CommunityComment, User)
             .join(User, CommunityComment.user_id == User.id)
-            .filter(CommunityComment.post_id == p.id)
-            .order_by(CommunityComment.created_at)
+            .filter(CommunityComment.post_id.in_(post_ids))
+            .order_by(CommunityComment.created_at, CommunityComment.id)
             .all()
-        )
+        ):
+            comments_by_post[comment.post_id].append((comment, author))
+    output = []
+    for p, author in posts[:limit]:
+        like_count, liked = likes_by_post.get(p.id, (0, False))
+        comments = comments_by_post[p.id]
         output.append(
             {
                 "id": p.id,
@@ -64,8 +88,8 @@ def feed(
                     else p.created_at
                 ),
                 "own": bool(user and p.user_id == user.id),
-                "likes": len(likes),
-                "liked": any(user and l.user_id == user.id for l in likes),
+                "likes": like_count,
+                "liked": bool(user and liked),
                 "comments": [
                     {
                         "id": c.id,

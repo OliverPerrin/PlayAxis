@@ -6,6 +6,7 @@ import json
 import time
 from datetime import datetime, timezone, timedelta
 import httpx
+from app.services.http_client import provider_client
 from fastapi import HTTPException
 from app.core.config import settings
 from app.db.session import SessionLocal
@@ -54,7 +55,7 @@ async def request(path, params=None):
             return found
         await asyncio.sleep(max(0, _next - time.monotonic()))
         try:
-            async with httpx.AsyncClient(timeout=18) as client:
+            async with provider_client(timeout=18) as client:
                 response = await client.get(
                     "https://api.balldontlie.io/v1/" + path,
                     params=params,

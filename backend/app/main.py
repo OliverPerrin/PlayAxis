@@ -5,9 +5,11 @@ import subprocess
 import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from app.core.config import settings
 from app.db.database import DB_KIND, engine, Base
 from app.api.v1.api import api_router
+from app.services.http_client import provider_http_lifespan
 from app.models import *
 from app.models.community import CommunityPost, CommunityLike, CommunityComment
 
@@ -21,7 +23,8 @@ async def lifespan(app):
         )
     elif DB_KIND == "sqlite":
         Base.metadata.create_all(bind=engine)
-    yield
+    async with provider_http_lifespan():
+        yield
 
 
 app = FastAPI(title="PlayAxis API", version="3.0.0", lifespan=lifespan)
@@ -39,6 +42,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 app.include_router(api_router, prefix="/api/v1")
 
 

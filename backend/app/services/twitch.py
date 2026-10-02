@@ -3,6 +3,7 @@
 import asyncio
 from datetime import datetime, timezone
 import httpx
+from app.services.http_client import provider_client
 from fastapi import HTTPException
 from app.core.config import settings
 from app.core.cache import cache
@@ -23,7 +24,7 @@ async def get_app_token():
                 503, "Twitch is not connected. Live chess remains available."
             )
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with provider_client(timeout=15) as client:
                 response = await client.post(
                     "https://id.twitch.tv/oauth2/token",
                     data={
@@ -49,28 +50,28 @@ async def get_app_token():
 
 async def _get(path, params, ttl=120):
     key = f"twitch:{path}:{params}"
-    data = await cache.get(key)
-    if data is not None:
-        return data
-    token = await get_app_token()
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.get(
-                "https://api.twitch.tv/helix/" + path,
-                params=params,
-                headers={
-                    "Client-ID": settings.TWITCH_CLIENT_ID,
-                    "Authorization": "Bearer " + token,
-                },
-            )
-        response.raise_for_status()
-        data = response.json()
-        await cache.set(key, data, ttl)
-        return data
-    except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(
-            503, "Live broadcasts are temporarily unavailable. Please retry."
-        ) from exc
+
+    async def fetch():
+        token = await get_app_token()
+        try:
+            async with provider_client(timeout=15) as client:
+                response = await client.get(
+                    "https://api.twitch.tv/helix/" + path,
+                    params=params,
+                    headers={
+                        "Client-ID": settings.TWITCH_CLIENT_ID,
+                        "Authorization": "Bearer " + token,
+                    },
+                )
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(
+                503, "Live broadcasts are temporarily unavailable. Please retry."
+            ) from exc
+
+    return await cache.get_or_set(key, ttl, fetch)
 
 
 CATEGORIES = {

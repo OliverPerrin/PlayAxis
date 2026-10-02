@@ -8,47 +8,13 @@ import {
   ResourceState,
   EmptyState,
   EventCard,
-  formatDate,
-  formatTime,
   SourceNote,
   safeURL,
 } from "../components/ui";
 import LocationSearch from "../components/LocationSearch";
 import { dateWindow, withinDates } from "../utils/eventDates";
 import { ACTIVITIES } from "../utils/workouts";
-export function SessionCard({ event }) {
-  return (
-    <article className="panel session-card">
-      <span className="date-label">
-        {formatDate(event.start, { weekday: "short" })} ·{" "}
-        {formatTime(event.start)}
-      </span>
-      <h3>{event.name}</h3>
-      <div className="session-meta">
-        <span>{event.sport}</span>
-        <span>
-          {event.venue}, {event.city}
-        </span>
-      </div>
-      <p>
-        {event.description?.slice(0, 170)}
-        {event.description?.length > 170 ? "…" : ""}
-      </p>
-      <footer>
-        <Link
-          className="button secondary"
-          to={`/events/${event.id}`}
-          state={{ event }}
-        >
-          View session
-        </Link>
-        <span className="small muted">
-          {event.attendees} going{event.joined ? " · You’re in" : ""}
-        </span>
-      </footer>
-    </article>
-  );
-}
+import SessionCard from "../components/events/SessionCard";
 export default function LocalEventsPage() {
   const { preferences, update } = usePreferences();
   const [sport, setSport] = useState("");

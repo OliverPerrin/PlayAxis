@@ -12,7 +12,7 @@ import {
   safeURL,
 } from "../components/ui";
 import EventCalendar from "../components/events/EventCalendar";
-import { SessionCard } from "./LocalEventsPage";
+import SessionCard from "../components/events/SessionCard";
 export default function SavedPage() {
   const { user } = useAuth();
   const { saved, savedPlaces, togglePlace } = usePreferences();

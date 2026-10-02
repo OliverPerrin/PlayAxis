@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 import httpx
+from app.services.http_client import provider_client
 from fastapi import HTTPException
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
@@ -62,32 +63,38 @@ def _cached(key):
 
 
 def _store(key, data):
+    _store_many({key: data})
+
+
+def _store_many(items):
+    """Persist a search snapshot and its event details in one transaction."""
     with SessionLocal() as db:
-        try:
-            row = db.get(DiscoveryCache, key)
-            if row:
-                row.data = data
-                row.stored_at = datetime.now(timezone.utc)
-            else:
-                db.add(
-                    DiscoveryCache(
-                        key=key, data=data, stored_at=datetime.now(timezone.utc)
-                    )
-                )
-            db.query(DiscoveryCache).filter(
-                DiscoveryCache.stored_at
-                < datetime.now(timezone.utc) - timedelta(days=30)
-            ).delete()
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            # A concurrent search may have inserted the same public snapshot.
-            row = db.get(DiscoveryCache, key)
-            if row is None:
-                raise
-            row.data = data
-            row.stored_at = datetime.now(timezone.utc)
-            db.commit()
+        for attempt in range(2):
+            try:
+                existing = {
+                    row.key: row
+                    for row in db.query(DiscoveryCache)
+                    .filter(DiscoveryCache.key.in_(items))
+                    .all()
+                }
+                now = datetime.now(timezone.utc)
+                for key, data in items.items():
+                    row = existing.get(key)
+                    if row is None:
+                        db.add(DiscoveryCache(key=key, data=data, stored_at=now))
+                    else:
+                        row.data = data
+                        row.stored_at = now
+                db.query(DiscoveryCache).filter(
+                    DiscoveryCache.stored_at < now - timedelta(days=30)
+                ).delete()
+                db.commit()
+                return
+            except IntegrityError:
+                db.rollback()
+                # Another worker may have inserted one of the snapshots.
+                if attempt:
+                    raise
 
 
 def _reserve():
@@ -140,9 +147,9 @@ async def local_events(
                 city, sport, country, lat, lon, date_from, date_to, tz
             )
             if result["events"]:
-                for item in result["events"]:
-                    await asyncio.to_thread(_store, "event:" + item["id"], item)
-                await asyncio.to_thread(_store, key, result)
+                snapshots = {"event:" + item["id"]: item for item in result["events"]}
+                snapshots[key] = result
+                await asyncio.to_thread(_store_many, snapshots)
                 return result
         except HTTPException:
             pass
@@ -162,7 +169,7 @@ async def local_events(
         if found:
             return {**found, "cached": True}
         try:
-            async with httpx.AsyncClient(timeout=22) as client:
+            async with provider_client(timeout=22) as client:
                 account = await cache.get("serp:free-status")
                 if account is None:
                     response = await client.get(
@@ -231,7 +238,7 @@ async def local_events(
         return result
 
 
-async def local_detail(id):
+def _read_detail(id):
     with SessionLocal() as db:
         row = db.get(DiscoveryCache, "event:" + id)
         existing = row.data if row else None
@@ -240,6 +247,11 @@ async def local_detail(id):
             if row
             else None
         )
+    return existing, age
+
+
+async def local_detail(id):
+    existing, age = await asyncio.to_thread(_read_detail, id)
     if (
         id.startswith("tm-")
         and settings.TICKETMASTER_API_KEY

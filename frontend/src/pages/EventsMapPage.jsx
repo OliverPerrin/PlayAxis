@@ -34,50 +34,64 @@ export default function EventsMapPage() {
     () => [searchCenter.latitude, searchCenter.longitude],
     [searchCenter],
   );
-  const resource = useResource(
-    `${layer}:${center.join(",")}:${radius}:${layer === "events" ? sport : ""}`,
-    async () => {
-      if (layer === "places") return getPlaces(center[0], center[1], radius);
-      const results = await Promise.allSettled([
-        getSessions(
-          searchCenter.name === "Your location" ||
-            searchCenter.name === "this area"
-            ? ""
-            : searchCenter.name,
-          sport,
-        ),
-        searchLocalEvents(searchCenter, sport || "all"),
-      ]);
-      const valid = results
-        .filter((r) => r.status === "fulfilled")
-        .map((r) => r.value);
-      if (!valid.length)
-        throw new Error(
-          "Event listings are temporarily unavailable. Please retry.",
-        );
-      const events = valid.flatMap((r) => r.events || []);
-      const nearby = (p) => {
-        const rad = (value) => (value * Math.PI) / 180;
-        const dy = rad(p.latitude - center[0]),
-          dx = rad(p.longitude - center[1]);
-        const a =
-          Math.sin(dy / 2) ** 2 +
-          Math.cos(rad(center[0])) *
-            Math.cos(rad(p.latitude)) *
-            Math.sin(dx / 2) ** 2;
-        return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= 30;
-      };
-      return {
-        places: events.filter(hasCoordinates).filter(nearby),
-        limited: valid.some((r) => r.total > (r.events?.length || 0)),
-        unmapped: events.filter((e) => !hasCoordinates(e)).length,
-        organisers: valid.reduce((n, r) => n + (r.organisers?.length || 0), 0),
-        warning: results.some((r) => r.status === "rejected")
+  const places = useResource(
+    layer === "places" ? `places:${center.join(",")}:${radius}` : null,
+    () => getPlaces(center[0], center[1], radius),
+  );
+  const sessionCity = ["Your location", "this area"].includes(searchCenter.name)
+    ? ""
+    : searchCenter.name;
+  const sessions = useResource(
+    layer === "events" ? `map-sessions:${sessionCity}:${sport}` : null,
+    () => getSessions(sessionCity, sport),
+  );
+  const external = useResource(
+    layer === "events"
+      ? `map-events:${center.join(",")}:${searchCenter.name}:${sport}`
+      : null,
+    () => searchLocalEvents(searchCenter, sport || "all"),
+  );
+  // Publish each source as it arrives so slow feeds cannot hide ready sessions.
+  const eventData = useMemo(() => {
+    const valid = [sessions.data, external.data].filter(Boolean);
+    if (!valid.length) return null;
+    const events = valid.flatMap((result) => result.events || []);
+    const nearby = (point) => {
+      const rad = (value) => (value * Math.PI) / 180;
+      const dy = rad(point.latitude - center[0]);
+      const dx = rad(point.longitude - center[1]);
+      const a =
+        Math.sin(dy / 2) ** 2 +
+        Math.cos(rad(center[0])) *
+          Math.cos(rad(point.latitude)) *
+          Math.sin(dx / 2) ** 2;
+      return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= 30;
+    };
+    return {
+      places: events.filter(hasCoordinates).filter(nearby),
+      limited: valid.some((result) => result.total > (result.events?.length || 0)),
+      unmapped: events.filter((event) => !hasCoordinates(event)).length,
+      organisers: valid.reduce(
+        (n, result) => n + (result.organisers?.length || 0), 0,
+      ),
+      warning:
+        sessions.error || external.error
           ? "Some event sources are unavailable. Available events are shown."
           : null,
-      };
+    };
+  }, [sessions.data, external.data, sessions.error, external.error, center]);
+  const eventsLoading = sessions.loading || external.loading;
+  const resource = layer === "places" ? places : {
+    data: eventData,
+    loading: eventsLoading,
+    error: !eventsLoading && !eventData
+      ? "Event listings are temporarily unavailable. Please retry."
+      : null,
+    reload: () => {
+      sessions.reload();
+      external.reload();
     },
-  );
+  };
   const all = useMemo(() => resource.data?.places || [], [resource.data]);
   const points = useMemo(
     () =>
@@ -228,7 +242,7 @@ export default function EventsMapPage() {
               : `${points.length} mapped ${layer === "places" ? "places" : "events"}`}{" "}
             · {searchCenter.name}
           </p>
-          {resource.loading && !resource.data ? (
+          {resource.loading && !points.length ? (
             <Loading text="Finding results" />
           ) : resource.error ? (
             <ErrorState message={resource.error} retry={resource.reload} />

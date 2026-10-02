@@ -85,7 +85,7 @@ export default function EventDetailPage() {
     setFeedback("");
     try {
       await rsvpSession(event.session_id);
-      resource.reload();
+      resource.reload({ invalidate: false });
     } catch (e) {
       setFeedback(e.message);
     } finally {

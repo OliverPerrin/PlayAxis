@@ -381,3 +381,61 @@ test("local search displays organiser links without fabricating event details", 
     screen.getByText(/Website results are not filtered by date/),
   ).toBeInTheDocument();
 });
+
+test("event map shows community sessions while the external feed is still pending", async () => {
+  let resolveExternal;
+  const pendingExternal = new Promise((resolve) => { resolveExternal = resolve; });
+  const fallback = global.fetch.getMockImplementation();
+  global.fetch.mockImplementation(async (url, options) => {
+    if (url.includes("/discovery/events")) return pendingExternal;
+    if (url.includes("/sessions")) return {
+      ok: true, status: 200, json: async () => ({ events: [{
+        id: "session-1", name: "Ready community session", sport: "running",
+        latitude: 51.5072, longitude: -0.1276,
+      }] }),
+    };
+    return fallback(url, options);
+  });
+  window.history.replaceState({}, "", "/map?layer=events");
+  await act(async () => { render(<App />); });
+  expect(await screen.findByRole("button", { name: /Ready community session/ })).toBeInTheDocument();
+  expect(screen.getByText(/Searching this area/)).toBeInTheDocument();
+  await act(async () => {
+    resolveExternal({ ok: true, status: 200, json: async () => ({ events: [] }) });
+  });
+  expect(await screen.findByText(/1 mapped events/)).toBeInTheDocument();
+});
+
+test("saved event filters do not fetch provider feeds", async () => {
+  const { fireEvent } = require("@testing-library/react");
+  window.history.replaceState({}, "", "/events");
+  await act(async () => { render(<App />); });
+  await screen.findByText("No matching upcoming events");
+  await act(async () => { fireEvent.click(screen.getByRole("checkbox")); });
+  global.fetch.mockClear();
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText("Filter by league"), { target: { value: "epl" } });
+  });
+  expect(window.location.search).toBe("?sport=epl");
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+test("home loads fixture highlights without paginating the full event catalogue", async () => {
+  const fallback = global.fetch.getMockImplementation();
+  global.fetch.mockImplementation(async (url, options) => {
+    if (url.includes("/events?highlights=true")) return {
+      ok: true, status: 200,
+      json: async () => ({
+        events: [{ id: "highlight-1", name: "Upcoming fixture", league: "Premier League" }],
+        total: 600, limit: 200, offset: 0,
+      }),
+    };
+    return fallback(url, options);
+  });
+  window.history.replaceState({}, "", "/");
+  await act(async () => { render(<App />); });
+  expect(await screen.findByText("Upcoming fixture")).toBeInTheDocument();
+  const eventRequests = global.fetch.mock.calls.filter(([url]) => /\/events\?/.test(url));
+  expect(eventRequests).toHaveLength(1);
+  expect(eventRequests[0][0]).toContain("/events?highlights=true");
+});

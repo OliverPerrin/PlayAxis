@@ -36,7 +36,7 @@ export function ClubDetailPage() {
     setBusy(true);
     try {
       await toggleClubMembership(id);
-      resource.reload();
+      resource.reload({ invalidate: false });
     } catch (e) {
       setError(e.message);
     } finally {
