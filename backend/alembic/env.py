@@ -11,8 +11,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # 2. Read the Alembic config file for logging and for sqlalchemy.url
 config = context.config
 from app.core.config import settings
+from app.db.url import database_url
 
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
+config.set_main_option(
+    "sqlalchemy.url", database_url(settings.DATABASE_URL).replace("%", "%%")
+)
 fileConfig(config.config_file_name)
 
 # 3. Import only the Base metadata—NO session.py or config.py here!
