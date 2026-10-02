@@ -11,7 +11,11 @@ RAW_URL = database_url(settings.DATABASE_URL)
 
 connect_args = {"check_same_thread": False} if RAW_URL.startswith("sqlite") else {}
 
-engine = create_engine(RAW_URL, echo=False, future=True, connect_args=connect_args)
+# The managed database can close idle SSL connections while the app is asleep.
+# Replace stale pooled connections before handing them to a request.
+engine = create_engine(
+    RAW_URL, echo=False, future=True, connect_args=connect_args, pool_pre_ping=True
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 
 # Optional: helps /healthz display the DB kind

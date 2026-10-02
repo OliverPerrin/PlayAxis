@@ -30,3 +30,20 @@ def test_postgres_application_import_and_offline_migrations():
     result = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "778b17015fd0", "--sql"], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "CREATE TABLE users" in result.stdout
+
+
+def test_runtime_replaces_a_closed_idle_connection(tmp_path):
+    env = {**os.environ, "DATABASE_URL": f"sqlite:///{tmp_path}/pool.db"}
+    code = """
+from app.db.database import engine
+with engine.connect() as connection:
+    raw = connection.connection.driver_connection
+    assert connection.exec_driver_sql('SELECT 1').scalar() == 1
+# Simulate the server dropping the connection after it returns to the pool.
+raw.close()
+with engine.connect() as connection:
+    assert connection.exec_driver_sql('SELECT 1').scalar() == 1
+engine.dispose()
+"""
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

@@ -22,6 +22,24 @@ Keep the production database URL and stable signing secret. The database connect
 
 Netlify uses Node 22, `npm ci` and the committed lockfile. `REACT_APP_API_URL` is blank so requests use the configured API proxy.
 
+### October 2026 database connection fixes
+
+Fresh builds with SQLAlchemy 2.1 select psycopg 3 for bare PostgreSQL URLs,
+but this application installs psycopg2. Runtime and Alembic now share explicit
+`postgresql+psycopg2` normalization for `postgres://` and `postgresql://` URLs.
+Credentials, SSL parameters and explicitly selected drivers are preserved.
+
+The runtime pool checks connections before reuse because the managed database
+can close idle SSL connections. This prevents a stale connection from failing
+the first request after inactivity. It does not retry interrupted transactions.
+These fixes require no schema migration or production credential change.
+
+Koyeb's Mistral announcement was reviewed on 2 October 2026. The existing
+organization remains on Starter with Free application and database services;
+no account migration action was shown. Koyeb says existing plans remain unchanged
+and no Mistral account is required. See the
+[official announcement](https://www.koyeb.com/blog/koyeb-is-joining-mistral-ai-to-build-the-future-of-ai-infrastructure).
+
 ## Release verification
 
 A Git push is only the start of release. Confirm Netlify has published the intended commit, Koyeb reports that commit healthy, and GitHub checks pass. Verify `/api/v1/healthz` reports version `3.0.0`; also check `/community`, `/clubs` and `/sessions` because health does not query the database. Run the read-only provider checks against the public site's `/api/v1` base.
